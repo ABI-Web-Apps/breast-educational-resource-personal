@@ -11,6 +11,7 @@ and behind the portal's /plugin/<expose>/ location, which strips its prefix):
 
     GET /api/health                 liveness, for compose and the portal
     GET /api/modelView/<path>       the catalogue, read-only
+    POST /api/tool-config           validate a tool config, resolve its dataset (SSE)
 """
 
 import mimetypes
@@ -21,6 +22,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
+
+from app.router.tool_config import router as tool_config_router
 from starlette.types import Scope
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -70,6 +73,9 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Length", "ETag"],
 )
+
+
+app.include_router(tool_config_router)
 
 
 @app.get("/api/health")

@@ -1,5 +1,6 @@
 """Shared test fixtures."""
 
+import copy
 import json
 from pathlib import Path
 
@@ -178,3 +179,45 @@ class FakeMinio:
 @pytest.fixture()
 def fake_minio(sparc_dataset) -> FakeMinio:
     return FakeMinio(sparc_dataset)
+
+
+TOOL_CONFIG = {
+    "user_info": {"uuid": "user-001"},
+    "assay_info": {
+        "uuid": "assay-001",
+        "name": "breast-educational-resource",
+        "cohorts": ["sub-1"],
+        "datasets": [
+            {
+                "name": "workdir",
+                "sample_type": ["contrast_1_nrrd", "researcher_manual_LPS_nii", "findings_json"],
+            }
+        ],
+    },
+    "system": {"minio": {"base_url": "http://localhost:9000/measurements/"}},
+}
+
+
+@pytest.fixture()
+def tool_config() -> dict:
+    """A fresh copy of the frontend's tool_config.json, safe to mutate."""
+    return copy.deepcopy(TOOL_CONFIG)
+
+
+@pytest.fixture()
+def client(fake_minio):
+    """TestClient with MinIO replaced by the fake and an empty assay registry."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.router.tool_config import get_minio_service
+    from app.services.assay_registry import registry
+    from app.services.minio_service import MinIOService
+
+    registry.clear()
+    app.dependency_overrides[get_minio_service] = lambda: MinIOService(client=fake_minio)
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_minio_service, None)
+        registry.clear()
