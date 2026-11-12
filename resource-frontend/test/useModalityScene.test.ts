@@ -1,3 +1,4 @@
+import { OrientationError } from 'copper3d'
 import { effectScope, shallowRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Modality } from '../src/content/types'
@@ -260,7 +261,7 @@ describe('useModalityScene', () => {
     expect(renderer.setCurrentScene).toHaveBeenCalledWith(scene)
 
     // Resolve loadNrrd's callback synchronously, as a fast local fixture load would.
-    const [, , , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
+    const [, , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
     callback(fakeVolume(), fakeMeshes(), { z: fakeSlice() })
     await loadPromise
 
@@ -274,6 +275,57 @@ describe('useModalityScene', () => {
     // as data (not just applied instantly), so a camera flight has
     // something to interpolate toward instead of only ever jumping there.
     expect(modalityScene.viewpoint.value).toEqual(DEFAULT_VIEWPOINT)
+  })
+
+  /**
+   * copper3d 4.1 dropped `loadNrrd`'s `segmentation` flag: the loader now
+   * always reorders a volume into canonical LPS order. Passing the flag
+   * anyway would shift the callback into the `opts` slot and the options
+   * object off the end, so nothing would ever be called back.
+   */
+  it('calls loadNrrd(url, bar, callback, opts) without a segmentation flag', async () => {
+    const scene = makeFakeScene()
+    const renderer = makeFakeRenderer(scene)
+    const modalityScene = useModalityScene(makeFakeStage(renderer))
+
+    const load = modalityScene.load('density-a', makeModality({ id: 'mri', asset: 'density-1/right/mri.nrrd' }))
+    const args = vi.mocked(scene.loadNrrd).mock.calls[0]! as unknown[]
+
+    expect(args.length).toBe(4)
+    expect(args[0]).toBe('/modelView/density-1/right/mri.nrrd')
+    expect(typeof args[2]).toBe('function')
+    expect(typeof (args[3] as { onError?: unknown }).onError).toBe('function')
+
+    resolveNrrd(scene)
+    await load
+  })
+
+  /**
+   * A volume whose orientation copper3d cannot establish is refused through
+   * `opts.onError` and never displayed. That must land in the stage's
+   * existing failure state, not leave a blank stage behind a spinner until
+   * the stall timer gives up.
+   */
+  it('surfaces an orientation refusal as a load failure', async () => {
+    const scene = makeFakeScene()
+    const renderer = makeFakeRenderer(scene)
+    const modalityScene = useModalityScene(makeFakeStage(renderer))
+    // copper3d's own error type, so this also proves it arrives unwrapped.
+    const refusal = new OrientationError('no_space', 'The header has no space field')
+    vi.mocked(scene.loadNrrd).mockImplementationOnce((...args: unknown[]) => {
+      (args[3] as { onError?: (error: unknown) => void } | undefined)?.onError?.(refusal)
+    })
+
+    const load = modalityScene.load('the-breast', makeModality())
+    // Microtasks only: the refusal must not need the stall timer to land.
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+
+    expect(modalityScene.loadError.value).toBe(refusal)
+    expect((modalityScene.loadError.value as OrientationError).code).toBe('no_space')
+    expect(modalityScene.loading.value).toBe(false)
+    // The refused scene is not left behind as a cache hit for the next visit.
+    expect(renderer.sceneMap['/modelView/density-1/middle/m3d.nrrd']).toBeUndefined()
+    await load
   })
 
   /**
@@ -303,7 +355,7 @@ describe('useModalityScene', () => {
       'density-a',
       makeModality({ id: 'mri', asset: 'density-1/right/mri.nrrd' }),
     )
-    const [, , , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
+    const [, , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
     callback(fakeVolume(), fakeMeshes(), { z: fakeSlice() })
     await load
 
@@ -319,7 +371,7 @@ describe('useModalityScene', () => {
     const modality = makeModality()
 
     const first = modalityScene.load('the-breast', modality)
-    const [, , , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
+    const [, , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
     callback(fakeVolume(), fakeMeshes(), { z: fakeSlice() })
     await first
 
@@ -783,7 +835,7 @@ describe('useModalityScene', () => {
 
     const loadPromise = modalityScene.load('the-breast', makeModality({ id: 'mri' }))
     const meshes = fakeMeshes()
-    const [, , , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
+    const [, , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
     callback(fakeVolume(), meshes, { z: fakeSlice() })
     await loadPromise
 
@@ -830,7 +882,7 @@ describe('useModalityScene', () => {
       install.mockResolvedValue(undefined)
 
       const loadPromise = modalityScene.load('the-breast', makeModality({ id, asset: `x/${id}.nrrd` }))
-      const [, , , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
+      const [, , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
       callback(fakeVolume(VOXELS), fakeMeshes(), { z: slice })
       await loadPromise
 
@@ -873,7 +925,7 @@ describe('useModalityScene', () => {
       slice.repaint = () => { painted++ }
 
       const load = modalityScene.load('the-breast', makeModality({ id: 'mri', asset: 'x/mri.nrrd' }))
-      const [, , , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
+      const [, , callback] = vi.mocked(scene.loadNrrd).mock.calls[0]!
       callback(fakeVolume(VOXELS), fakeMeshes(), { z: slice })
 
       // Microtasks, not timers: this suite runs on fake timers.
@@ -1562,7 +1614,7 @@ function fakeSlice(overrides: { index?: number, MaxIndex?: number, spacing?: num
 /** The `opts` object copper3d's `loadNrrd` was handed on its Nth call --
  *  where `axes`, `onProgress` and `onError` live (copper3d 3.9.0). */
 function nrrdOpts(scene: CopperScene, call = 0) {
-  return vi.mocked(scene.loadNrrd).mock.calls[call]![4] as {
+  return vi.mocked(scene.loadNrrd).mock.calls[call]![3] as {
     axes?: readonly string[]
     onProgress?: (event: ProgressEvent) => void
     onError?: (error: unknown) => void
@@ -1578,7 +1630,7 @@ function nrrdProgress(scene: CopperScene, loaded: number, total: number, call = 
  * data, as a fast local load would. */
 function resolveNrrd(scene: CopperScene, slice = fakeSlice()) {
   const calls = vi.mocked(scene.loadNrrd).mock.calls
-  const [, , , callback] = calls[calls.length - 1]!
+  const [, , callback] = calls[calls.length - 1]!
   callback(fakeVolume(), fakeMeshes(), { z: slice })
 }
 

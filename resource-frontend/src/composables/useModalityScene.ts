@@ -845,10 +845,12 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
       armStallTimer() // starts the clock even before the first progress event
 
       try {
+        // copper3d 4.1 reorders every volume into canonical LPS voxel order,
+        // which is why the old `segmentation` flag (its approximation) is
+        // gone from this signature.
         target.loadNrrd(
           assetUrl,
           bar,
-          true,
           (volume, meshes, slices) => {
             settle()
             target.addObject(meshes.z)
@@ -935,6 +937,11 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
             // plus two slice planes this app disposed immediately.
             axes: ['z'],
             onProgress,
+            // A network or parse failure, or an `OrientationError`: copper3d
+            // refuses a volume whose patient orientation it cannot establish
+            // rather than guess at it. Either way the stage shows its failure
+            // state instead of a blank plane. `OrientationError` extends
+            // `Error`, so it passes through unwrapped with its `code`.
             onError: (err) => {
               settle()
               reject(err instanceof Error ? err : new Error(String(err)))
@@ -1002,13 +1009,11 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
  *     the legacy material does not have (a fresh MeshPhysicalMaterial is
  *     roughness 1, metalness 0, no maps).
  *
- * Importing `three` here means a second copy of it crosses into a copper3d
- * scene. That is safe because the versions are identical: `three@0.185.1` is
- * pinned in package.json and is the same build copper3d inlines (yarn
- * resolves this app's three from copper3d's own dependency), and three's
- * scene graph dispatches on `.isMesh`/`.isMaterial` marker properties rather
- * than `instanceof` precisely so mixed copies interoperate. If copper3d ever
- * bundles a different revision, that pin must move with it.
+ * Importing `three` here is the same copy copper3d uses: since copper3d 4,
+ * three is a peer dependency, so the `three` pinned in package.json is the
+ * only one on the page and objects cross between this app and copper3d
+ * freely. The pin must stay inside copper3d's `three` peer range (it logs a
+ * revision-mismatch `console.error` at import otherwise).
  */
 async function tintFatLayer(group: SceneObject): Promise<void> {
   const targets: NonNullable<SceneObjectChild['material']>[] = []

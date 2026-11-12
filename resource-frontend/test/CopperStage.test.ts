@@ -166,7 +166,7 @@ function makeScene() {
     // with their own `mockImplementation` (see e.g. the "does not fly until
     // ..." test below) -- that call fully replaces this one.
     loadNrrd: vi.fn((...args: unknown[]) => {
-      const callback = args[3] as (volume: unknown, meshes: unknown, slices: unknown) => void
+      const callback = args[2] as (volume: unknown, meshes: unknown, slices: unknown) => void
       callback(
         { RASDimensions: [1, 1, 1], windowHigh: 1, repaintAllSlices: vi.fn() },
         // Only `z`, matching the `axes: ['z']` the app asks for.
@@ -464,7 +464,7 @@ describe('CopperStage navigation choreography', () => {
       return mriScene
     })
     mriScene.loadNrrd.mockImplementation((...args: unknown[]) => {
-      const callback = args[3] as (v: unknown, m: unknown, s: unknown) => void
+      const callback = args[2] as (v: unknown, m: unknown, s: unknown) => void
       finishLoad = () => callback(
         { RASDimensions: [1, 1, 1], windowHigh: 1, repaintAllSlices: vi.fn() },
         // `traverse` because the unused x/y planes are freed by

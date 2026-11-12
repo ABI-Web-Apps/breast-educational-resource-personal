@@ -2,9 +2,13 @@ import type { Ref } from 'vue'
 
 /**
  * These interfaces describe only what is actually reachable through
- * `copperRendererOnDemond` in copper3d@3.7.3 -- verified by reading the
- * shipped `.d.ts` files AND the compiled `dist/bundle.esm.js` (the two
- * disagree with each other in a couple of places, see the comments below).
+ * `copperRendererOnDemond` -- first written against copper3d 3.x by reading
+ * the shipped `.d.ts` files AND the compiled bundle (the two disagree with
+ * each other in a couple of places, see the comments below), and re-checked
+ * against copper3d 4.1.4. `dist/bundle.esm.js:<line>` citations below point
+ * into the 3.x bundle; 4.x ships it as `dist/bundle.esm.mjs` with different
+ * line numbers, and every behaviour cited here still holds there.
+ *
  * copper3d ships broader types built around its *other* renderer/scene
  * pair (`copperRenderer` / `copperScene`), which is not what this app uses
  * (design doc §8.2: one on-demand renderer). Extend this file, don't widen
@@ -299,10 +303,20 @@ export interface CopperScene extends CopperBaseScene {
     children: SceneObject[]
   }
   addObject: (obj: unknown) => void
+  /**
+   * copper3d 4.1 reorders every volume into canonical LPS voxel order (i
+   * toward patient Left, j Posterior, k Superior) -- a permutation and flips,
+   * never a resample -- so a file stored in any other order is displayed
+   * mirrored relative to 3.x. The `segmentation` flag that sat between
+   * `loadingBar` and `callback` approximated that and is gone.
+   *
+   * A volume whose orientation cannot be established (no `space`, a
+   * non-anatomical space, not 3-D, ...) is refused through `opts.onError`
+   * with an `OrientationError` and never displayed.
+   */
   loadNrrd: (
     url: string,
     loadingBar: LoadingBar,
-    segmentation: boolean,
     callback: (volume: NrrdVolume, meshes: NrrdMeshes, slices: { z: NrrdSlice }) => void,
     opts?: {
       openGui?: boolean
@@ -323,7 +337,9 @@ export interface CopperScene extends CopperBaseScene {
        *  `total` is 0 when the server sent no Content-Length. */
       onProgress?: (event: ProgressEvent) => void
       /** copper3d 3.9.0. Before it there was no error channel at all, and a
-       *  failed volume was indistinguishable from a slow one. */
+       *  failed volume was indistinguishable from a slow one. Since 4.1 it
+       *  also carries `OrientationError` (an `Error` subclass with a stable
+       *  `code`) for a volume the loader refuses to orient. */
       onError?: (error: unknown) => void
     },
   ) => void
@@ -454,18 +470,14 @@ export interface CopperRenderer {
     opt?: { controls?: 'copper3d' | 'orbit' | 'trackball' },
   ) => CopperScene | undefined
   /**
-   * `copperRendererOnDemond.sceneMap` (Renderer/copperRendererOnDemond.js:
-   * 2-3,15-16,25-33) is declared `private` in the `.d.ts`
-   * (Renderer/copperRendererOnDemond.d.ts:5), but that's TypeScript-only:
-   * at runtime it's a plain `{}` object assigned with `this.sceneMap = {}`
-   * and read/written with ordinary bracket access, not a real ECMAScript
-   * private field. There is no public eviction method anywhere in
-   * copper3d -- once `createScene` registers a name, nothing removes it
-   * again except deleting this property directly. Review round 2, fix #1:
-   * useModalityScene needs exactly this to stop a scene whose *content*
-   * failed to load (stall, timeout, bad view-preset) from sitting in the
-   * cache forever, indistinguishable from a real successful load on the
-   * next `getSceneByName` call.
+   * `copperRendererOnDemond.sceneMap`: a plain object keyed by scene name,
+   * public in copper3d 4.x's `.d.ts` so `disposeScene`/`removeSceneFromMap`
+   * can unregister an entry -- once `createScene` registers a name, nothing
+   * else removes it. Review round 2, fix #1: useModalityScene needs exactly
+   * this to stop a scene whose *content* failed to load (stall, timeout, a
+   * refused orientation, bad view-preset) from sitting in the cache forever,
+   * indistinguishable from a real successful load on the next
+   * `getSceneByName` call.
    */
   sceneMap: Record<string, CopperScene>
   setCurrentScene: (scene: CopperScene) => void
