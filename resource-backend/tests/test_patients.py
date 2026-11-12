@@ -129,3 +129,16 @@ def test_findings_that_break_the_schema_are_422(loaded_client, sparc_dataset):
     (sparc_dataset / "primary" / "sub-1" / "sam-3" / "f.json").write_text('{"findings": "nope"}')
     r = loaded_client.get("/api/patients/assay-001/sub-1/findings")
     assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_findings"
+
+
+def test_mri_removed_after_loading_is_404(loaded_client, sparc_dataset):
+    _c1(sparc_dataset).unlink()
+    r = loaded_client.get("/api/patients/assay-001/sub-1/mri")
+    assert r.status_code == 404 and r.json()["detail"]["code"] == "no_mri"
+
+
+def test_truncated_gzip_container_is_422(loaded_client, sparc_dataset):
+    payload = b"NRRD0004\ntype: uchar\ndimension: 1\nsizes: 4000\nencoding: raw\n\n" + bytes(range(256)) * 16
+    _c1(sparc_dataset).write_bytes(gzip.compress(payload)[:-40])
+    r = loaded_client.get("/api/patients/assay-001/sub-1/mri")
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_mri"

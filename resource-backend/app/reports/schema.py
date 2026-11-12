@@ -1,6 +1,7 @@
 """`findings_json` v3 — the schema.
 
 This file is the contract for the findings record. It reads v1 and v2 documents and writes v3.
+This app only re-serialises a record it read, without bumping its version.
 
 Design notes worth keeping in view while reading:
 
