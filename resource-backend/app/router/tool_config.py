@@ -60,20 +60,16 @@ async def post_tool_config(request: ToolConfigRequest, service: MinIOService = D
             detail={"step": "unknown", "summary": f"Unexpected validation error: {e}", "detail": str(e)},
         )
 
+    registry.put(ResolvedAssay(uuid=assay.uuid, base_url=request.system.minio.base_url, cohorts=resolved))
     cohorts = list(assay.cohorts)
+    total = len(cohorts)
 
     def stream() -> Iterator[str]:
-        try:
-            registry.put(ResolvedAssay(uuid=assay.uuid, base_url=request.system.minio.base_url, cohorts=resolved))
-            total = len(cohorts)
-            for index, cohort in enumerate(cohorts, start=1):
-                yield sse_event("progress", {"step": "resolve", "case": cohort, "current": index, "total_cases": total})
-                inputs = {sample_type: url is not None for sample_type, url in resolved[cohort].items()}
-                yield sse_event("resolved", {"case": cohort, "inputs": inputs})
-            yield sse_event("complete", {"assay": assay.uuid, "cases": cohorts})
-        except Exception as e:
-            logger.exception("tool-config: failure while streaming")
-            yield sse_event("error", {"step": "resolve", "summary": f"Unexpected error: {e}", "detail": str(e)})
+        for index, cohort in enumerate(cohorts, start=1):
+            yield sse_event("progress", {"step": "resolve", "case": cohort, "current": index, "total_cases": total})
+            inputs = {sample_type: url is not None for sample_type, url in resolved[cohort].items()}
+            yield sse_event("resolved", {"case": cohort, "inputs": inputs})
+        yield sse_event("complete", {"assay": assay.uuid, "cases": cohorts})
 
     return StreamingResponse(
         stream(),

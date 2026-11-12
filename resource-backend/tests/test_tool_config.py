@@ -15,6 +15,7 @@ def parse_sse(text: str) -> list[tuple[str, dict]]:
 
 def test_tool_config_streams_resolved_then_complete(client, tool_config):
     response = client.post("/api/tool-config", json=tool_config)
+    assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     events = parse_sse(response.text)
     assert [e for e, _ in events] == ["progress", "resolved", "complete"]
@@ -69,3 +70,28 @@ def test_registry_put_get():
     assert registry.get("a").cohorts == {"c": {"t": None}}
     assert registry.get("missing") is None
     registry.clear()
+
+
+def test_tool_config_accepts_alternative_key_spellings(client, tool_config):
+    body = {
+        "userInfo": tool_config["user_info"],
+        "assay-info": tool_config["assay_info"],
+        "system": {"minio": {"public_path": tool_config["system"]["minio"]["base_url"]}},
+    }
+    response = client.post("/api/tool-config", json=body)
+    assert response.status_code == 200
+    assert parse_sse(response.text)[-1][0] == "complete"
+    assert registry.get("assay-001") is not None
+
+
+def test_tool_config_unexpected_resolver_failure_400(client, tool_config, monkeypatch):
+    def boom(self, *args, **kwargs):
+        raise RuntimeError("minio exploded")
+
+    monkeypatch.setattr("app.services.minio_service.MinIOService.validate_and_resolve_inputs", boom)
+    response = client.post("/api/tool-config", json=tool_config)
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["step"] == "unknown"
+    assert detail["summary"]
+    assert registry.get("assay-001") is None

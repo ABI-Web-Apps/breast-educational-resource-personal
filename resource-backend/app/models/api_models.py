@@ -1,8 +1,8 @@
 """Request models for the tool-config endpoint. Unknown keys are ignored."""
 
-from typing import List
+from typing import Any, List
 
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 def _clean_names(values: List[str]) -> List[str]:
@@ -62,8 +62,31 @@ class AssayInfo(BaseModel):
         return _clean_names(v)
 
 
+def _rename_keys(data: Any, aliases: dict[str, str]) -> Any:
+    """Map accepted alternative key spellings onto the canonical field name.
+
+    Done in a before-validator rather than with `validation_alias`: FastAPI re-wraps a model's
+    field metadata when it builds the request body, and pydantic ignores (with a warning) an
+    alias attached that way, so the alternative spellings would silently stop working.
+    A canonical key present in the payload wins over an alternative one.
+    """
+    if not isinstance(data, dict):
+        return data
+    renamed = dict(data)
+    for alias, name in aliases.items():
+        if alias in renamed:
+            value = renamed.pop(alias)
+            renamed.setdefault(name, value)
+    return renamed
+
+
 class MinioSystemInfo(BaseModel):
-    base_url: str = Field(..., validation_alias=AliasChoices("base_url", "public_path"))
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_aliases(cls, data: Any) -> Any:
+        return _rename_keys(data, {"public_path": "base_url"})
+
+    base_url: str
 
 
 class SystemInfo(BaseModel):
@@ -71,6 +94,19 @@ class SystemInfo(BaseModel):
 
 
 class ToolConfigRequest(BaseModel):
-    user_info: UserInfo = Field(..., validation_alias=AliasChoices("user_info", "user-info", "userInfo"))
-    assay_info: AssayInfo = Field(..., validation_alias=AliasChoices("assay_info", "assay-info", "assayInfo"))
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_aliases(cls, data: Any) -> Any:
+        return _rename_keys(
+            data,
+            {
+                "user-info": "user_info",
+                "userInfo": "user_info",
+                "assay-info": "assay_info",
+                "assayInfo": "assay_info",
+            },
+        )
+
+    user_info: UserInfo
+    assay_info: AssayInfo
     system: SystemInfo

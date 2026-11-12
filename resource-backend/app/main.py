@@ -22,9 +22,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
+from starlette.types import Scope
 
 from app.router.tool_config import router as tool_config_router
-from starlette.types import Scope
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
