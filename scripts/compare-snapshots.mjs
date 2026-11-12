@@ -26,7 +26,11 @@ const allow = []
 let threshold = 0.01
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--threshold') threshold = Number(args[++i])
-  else if (args[i] === '--allow') allow.push(args[++i])
+  else if (args[i] === '--allow') {
+    const g = args[++i]
+    if (!g) { console.error('--allow needs a glob'); process.exit(2) }
+    allow.push(g)
+  }
   else dirs.push(args[i])
 }
 if (dirs.length !== 2 || !Number.isFinite(threshold)) {
@@ -36,7 +40,7 @@ if (dirs.length !== 2 || !Number.isFinite(threshold)) {
 const [dirA, dirB] = dirs
 
 const globToRegExp = g =>
-  new RegExp('^' + g.replace(/[.+^${}()|[\]\?]/g, '\$&').replace(/\*/g, '.*') + '$')
+  new RegExp('^' + g.replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/\*/g, '.*') + '$')
 const allowRes = allow.map(globToRegExp)
 const isAllowed = name => allowRes.some(r => r.test(name) || r.test(name.replace(/\.png$/, '')))
 
