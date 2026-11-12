@@ -125,10 +125,10 @@ class MinIOService:
     def read_object_bytes(self, url: str) -> bytes | None:
         """An object's raw bytes, or None when it is absent, empty or unreadable.
 
-        Non-raising for the same reason as `read_object_text`: an unavailable input is "not
-        supplied", a normal state for an optional dataset file. Callers that need to *open* a
-        volume read it through this and hand the bytes to an in-memory reader -- imaging data
-        is never written to disk on the way.
+        Non-raising: an unavailable input is "not supplied", a normal state for an optional
+        dataset file, and raising would turn a cohort without one into a 500.
+        Callers that need to *open* a volume read it through this and hand the bytes to an
+        in-memory reader -- imaging data is never written to disk on the way.
         """
         if not url:
             return None
