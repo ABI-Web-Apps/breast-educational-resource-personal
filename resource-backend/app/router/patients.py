@@ -8,15 +8,18 @@ import zlib
 from collections import OrderedDict
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from minio.error import S3Error
 from pydantic import ValidationError
 
 from app.reports import schema
 from app.router.tool_config import get_minio_service
+from app.services import mesh
 from app.services.assay_registry import registry
+from app.services.derived_cache import DerivedCache
 from app.services.minio_service import MinIOService
 from app.services.nrrd_header import NrrdHeaderError, parse_nrrd_header, split_header
+from app.utils.setup import Config
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,8 @@ router = APIRouter()
 
 MRI_SAMPLE_TYPE = "contrast_1_nrrd"
 FINDINGS_SAMPLE_TYPE = "findings_json"
+MASK_SAMPLE_TYPE = "researcher_manual_LPS_nii"
+NEUTRAL_COLOR = "#94a3b8"
 
 #: Encoded volumes kept in memory, keyed by the source object's identity. Two entries bound the
 #: footprint to a pair of compressed volumes; nothing is ever written to disk.
@@ -122,3 +127,51 @@ def get_findings(assay_uuid: str, cohort: str, service: MinIOService = Depends(g
         logger.warning("findings for %s do not match the schema: %s", cohort, e)
         raise _error(422, "invalid_findings", "The findings record does not match the expected schema.")
     return Response(content=schema.dumps(record), media_type="application/json")
+
+
+def _channel_colors(service: MinIOService, findings_url: str | None) -> dict[int, str]:
+    """Label -> colour from the cohort's findings; empty when they are absent or unusable."""
+    raw = service.read_object_bytes(findings_url) if findings_url else None
+    if raw is None:
+        return {}
+    try:
+        record = schema.loads(raw)
+    except ValidationError as e:
+        logger.warning("findings do not match the schema, meshes get the neutral colour: %s", e)
+        return {}
+    return {f.lesion.channel: f.lesion.color for f in record.findings}
+
+
+def _identity_or_none(service: MinIOService, url: str | None) -> str | None:
+    if url is None:
+        return None
+    try:
+        return service.object_identity(url)
+    except S3Error as e:
+        logger.warning("could not stat %s: %s", url, e)
+        return None
+
+
+@router.get("/api/patients/{assay_uuid}/{cohort}/mask.glb")
+def get_mask_glb(assay_uuid: str, cohort: str, service: MinIOService = Depends(get_minio_service)):
+    mask_url = resolved_input(assay_uuid, cohort, MASK_SAMPLE_TYPE)
+    mask_identity = _identity_or_none(service, mask_url)
+    if mask_url is None or mask_identity is None:
+        raise _error(404, "no_mask", f"Cohort {cohort} has no mask.")
+    findings_url = resolved_input(assay_uuid, cohort, FINDINGS_SAMPLE_TYPE)
+    findings_identity = _identity_or_none(service, findings_url) or "none"
+
+    def build() -> bytes:
+        raw = service.read_object_bytes(mask_url)
+        if raw is None:
+            raise _error(404, "no_mask", f"Cohort {cohort} has no mask.")
+        try:
+            glb = mesh.mask_to_glb(raw, _channel_colors(service, findings_url))
+        except mesh.MaskUnreadable as e:
+            raise _error(422, "invalid_mask", "The mask could not be read.") from e
+        if glb is None:
+            raise _error(404, "no_mask", f"The mask of cohort {cohort} is empty.")
+        return glb
+
+    path = DerivedCache(Config.CACHE_DIR).get_or_build(f"glb:{mask_identity}:{findings_identity}", ".glb", build)
+    return FileResponse(path, media_type="model/gltf-binary")

@@ -235,3 +235,30 @@ def loaded_client(client, tool_config):
     assert "event: complete" in response.text
     yield client
     patients.clear_mri_cache()
+
+
+@pytest.fixture()
+def cache_dir(tmp_path, monkeypatch) -> Path:
+    """The derived-file cache redirected to a fresh temp folder."""
+    from app.utils.setup import Config
+
+    folder = tmp_path / "derived-cache"
+    monkeypatch.setattr(Config, "CACHE_DIR", folder)
+    return folder
+
+
+@pytest.fixture()
+def loaded_client_with_empty_mask(sparc_dataset, client, tool_config, cache_dir):
+    """`loaded_client` after sub-1's mask is overwritten with an all-zero mask on the same grid."""
+    from app.router import patients
+
+    path = sparc_dataset / "primary" / "sub-1" / "sam-2" / "m.nii.gz"
+    affine = np.diag([-SPACING[0], -SPACING[1], SPACING[2], 1.0])
+    affine[:3, 3] = (-ORIGIN_LPS[0], -ORIGIN_LPS[1], ORIGIN_LPS[2])
+    nib.save(nib.Nifti1Image(np.zeros(GRID, dtype=np.uint8), affine), str(path))
+
+    tool_config["assay_info"]["cohorts"] = ["sub-1", "sub-2"]
+    patients.clear_mri_cache()
+    assert client.post("/api/tool-config", json=tool_config).status_code == 200
+    yield client
+    patients.clear_mri_cache()
