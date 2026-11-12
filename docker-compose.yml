@@ -1,0 +1,22 @@
+# Standalone stack: the site on http://localhost:3158 with its own backend.
+#
+#   docker compose up --build
+#
+# The portal does not use this file -- it builds the frontend as a UMD plugin
+# and deploys resource-backend/docker-compose.yml onto its own network.
+services:
+  frontend:
+    build:
+      context: ./resource-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-3158}:80"
+    depends_on:
+      - backend
+    restart: "no"
+
+  backend:
+    build:
+      context: ./resource-backend
+      dockerfile: Dockerfile
+    restart: "no"

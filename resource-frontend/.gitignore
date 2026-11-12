@@ -1,0 +1,25 @@
+# Dependencies and build outputs
+node_modules
+# yarn build (standalone site)
+build
+# yarn build:plugin (UMD bundle the portal mounts)
+dist
+*.tsbuildinfo
+
+# Local env. The portal's builder writes its own .env at build time
+# (VITE_PLUGIN_ROUTE_PREFIX); see .env.example for local dev.
+.env
+.env.*
+!.env.example
+
+# Playwright
+test-results
+test-results-screens
+playwright-report
+
+# Misc
+.DS_Store
+.idea
+.vscode
+logs
+*.log

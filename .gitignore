@@ -1,0 +1,26 @@
+.DS_Store
+build
+
+.claude
+# Product docs (plan/reference/): kept local.
+plan
+
+# Subagent-driven-development scratch: per-plan ledgers, task briefs,
+# implementer reports and review packages. Disposable -- git history is the
+# record once a plan has been executed.
+.superpowers
+
+# Uncompressed source imaging. scripts/optimize-assets.mjs reads this and
+# writes the compressed build into resource-backend/static/modelView.
+assets-src/
+
+# The compressed catalogue itself (resource-backend/static/modelView) IS
+# committed: the backend image and the GitHub Pages build both copy it.
+# Only the pipeline's staging directories are disposable.
+resource-backend/static/modelView.staging
+resource-backend/static/modelView.complete
+
+# resource-frontend/ and resource-backend/ ignore their own build outputs,
+# dependencies and virtualenvs in their own .gitignore files.
+
+resource-backend/static/workdir

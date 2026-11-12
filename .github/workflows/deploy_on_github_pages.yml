@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+on:
+  release:
+    types: [created]
+  # Lets a deploy be kicked off by hand from the Actions tab without cutting
+  # a release -- useful when showing work in progress to reviewers.
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: resource-frontend/yarn.lock
+
+      - run: yarn install --frozen-lockfile
+        working-directory: resource-frontend
+
+      # Pages serves a project site under /<repo-name>/, so the app's base has
+      # to match the repo this workflow is running in. Hard-coding
+      # "/breast-educational-resource/" breaks the moment the same code is
+      # deployed from a fork or a second organisation's repo: every asset
+      # request 404s under the real name and the page never boots.
+      #
+      # $GITHUB_REPOSITORY is "owner/name" on every event type. A
+      # user/organisation site (<owner>.github.io) is served from the root.
+      - name: Derive the Pages base path from this repo
+        run: |
+          name="${GITHUB_REPOSITORY#*/}"
+          if [ "${name}" = "${GITHUB_REPOSITORY_OWNER}.github.io" ]; then
+            base="/"
+          else
+            base="/${name}/"
+          fi
+          echo "Deploying under base path: ${base}"
+          echo "APP_BASE_URL=${base}" >> "$GITHUB_ENV"
+
+      # Pages has no backend, so the imaging catalogue ships next to the app
+      # and VITE_ASSET_BASE points at it. It is root-relative, and the app
+      # resolves it against APP_BASE_URL itself -- do NOT prefix the base
+      # here, or the URLs double up to /<repo>/<repo>/modelView/.
+      - run: yarn build
+        working-directory: resource-frontend
+        env:
+          VITE_ASSET_BASE: /modelView/
+
+      - name: Add the catalogue and the single-page-app 404 fallback
+        run: |
+          cp -r resource-backend/static/modelView resource-frontend/build/modelView
+          # Pages answers an unknown path with 404.html. Making that the app
+          # shell lets a deep link (/density-c/mri) boot the app, which then
+          # resolves the path itself -- including showing its own 404 page.
+          cp resource-frontend/build/index.html resource-frontend/build/404.html
+
+      - uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{secrets.BREAST_APP}}
+          publish_dir: "./resource-frontend/build"
+          user_name: "LinkunGao"
+          user_email: "gaolinkun123@gmail.com"
+          # The imaging is ~350MB. Without this, every deploy stacks another
+          # copy into gh-pages history and the repo grows without bound.
+          force_orphan: true

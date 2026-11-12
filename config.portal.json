@@ -1,0 +1,10 @@
+{
+  "name": "breast-educational-resource",
+  "description": "Te Uma: an interactive breast education resource -- anatomy, mammogram and MRI side by side for density grades, benign findings and cancers, with a guided tour",
+  "label": "GUI",
+  "has_backend": true,
+  "frontend_folder": "resource-frontend",
+  "frontend_build_command": "yarn build:plugin",
+  "backend_folder": "resource-backend",
+  "backend_deploy_command": "docker compose -p <expose_name> up --build -d --force-recreate"
+}

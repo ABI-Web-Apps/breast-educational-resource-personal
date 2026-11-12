@@ -1,0 +1,8 @@
+node_modules
+build
+dist
+.env
+test-results
+test-results-screens
+playwright-report
+.tw-exp

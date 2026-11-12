@@ -1,0 +1,423 @@
+@import "tailwindcss" prefix(tw);
+
+/* `prefix(tw)`: every utility is written `tw:flex`, `tw:md:max-xl:fixed`.
+
+   Not cosmetic. As a plugin, this app runs inside the portal's page, and the
+   portal ships Vuetify's global utility classes -- `.text-caption`,
+   `.text-h1`, `.bg-surface`, `.border` and dozens more, each `!important`
+   and each with a different meaning from this app's class of the same name.
+   Unprefixed, every one of those would land on this app's markup.
+
+   The prefix also renames the theme variables (`--color-brand` is emitted as
+   `--tw-color-brand`). Hand-written CSS below therefore reads them through
+   `--theme()`, which resolves the prefixed name, and the one arbitrary value
+   in a template that needs one (CopperStage's focus ring) names `--tw-*`
+   directly. */
+
+/* Tailwind 4 CSS-first config: variables in @theme also generate utilities
+   (--color-brand yields bg-brand / text-brand / border-brand).
+
+   Values come from plan/reference/TE_UMA_Breast_Health_Explorer_Design_
+   System.md; section marks below are its. */
+@theme {
+  /* ── Neutral layer (§3) ───────────────────────────────────────────────
+     Deepened one full step away from white. §3's values all sat within 4
+     lightness points of #FFF, so a white card on the page background
+     measured 1.063:1 -- no figure/ground at all, which is what read on
+     screen as haze rather than as depth. A white pane now measures
+     1.190:1 against the page. Every pinned contrast assertion still
+     clears with headroom (test/tokens.test.ts, test/nav-contrast.test.ts). */
+  --color-bg:             #EAEBF0;
+  --color-surface-sunken: #F2F3F7;
+  --color-border:         #DCDEE7;
+  --color-border-strong:  #C2C7D4;
+
+  /* ── Card layer ───────────────────────────────────────────────────────
+     Stays true white, deliberately. Greyscale MRI and mammography are read
+     against it, and a tinted surface shifts how those pixels are judged. */
+  --color-surface:        #FFFFFF;
+
+  /* ── Text ─────────────────────────────────────────────────────────────
+     Both muted values are one step darker than §3's. Its #657080 measures
+     4.39:1 on surface-sunken and its #9AA3AF only 2.55:1 on white, i.e.
+     below even the 3:1 non-text floor. Darkened again with the ground:
+     a deeper page needs deeper ink to hold the same separation. */
+  --color-text:           #171A23;
+  --color-text-muted:     #586273;  /* 6.16:1 white, 5.55:1 sunken */
+  --color-text-subtle:    #79828F;  /* 3.89:1 — graphics, or >=18.66px */
+
+  /* ── Brand layer (§3) ─────────────────────────────────────────────────
+     Breast Rose is an ACCENT, not an ink: 3.96:1 on white clears §11's 3:1
+     non-text floor (focus ring, nav indicator, card border) and misses the
+     4.5:1 body floor. Deep Burgundy is the ink that goes with it. Both
+     bands pinned in test/tokens.test.ts. */
+  --color-brand:          #D94F70;
+  --color-brand-hover:    #8E3650;
+  --color-brand-subtle:   #FCE8ED;  /* §14's cancer-tag background */
+
+  /* ── Case-group semantics (§4, §7) ────────────────────────────────────
+     Deliberately the same values as the modality inks below: one palette
+     on two axes, so a blue group heading and a blue anatomy tab are the
+     same blue rather than two that nearly agree. */
+  --color-group-anatomy:  #285A7A;  /* Medical Blue            7.41:1 */
+  --color-group-benign:   #26706D;  /* Supporting Teal, inked  5.80:1 */
+  --color-group-cancer:   #8E3650;  /* Deep Burgundy           7.11:1 */
+
+  /* The dark "reading lightbox" tokens are gone with the treatment they
+     served -- every modality sits on one background now. */
+
+  /* ── Modality semantic colours ────────────────────────────────────────
+     §3 gives Medical Blue to both anatomy and MRI; two tabs cannot share
+     one colour, so MRI takes the darker end. Every ink clears AA body on
+     white and on its own fill (test/tokens.test.ts). */
+  --color-anatomy-ink:      #285A7A;
+  --color-anatomy-fill:     #E7EFF4;
+  --color-mammogram-ink:    #8E3650;
+  --color-mammogram-fill:   #FCE8ED;
+  --color-ultrasound-ink:   #26706D;
+  --color-ultrasound-fill:  #E3F1F0;
+  --color-mri-ink:          #2F4B7C;
+  --color-mri-fill:         #E8EDF6;
+
+  /* ── Typography ──────────────────────────────── */
+  /* See index.html's font link for why Inter replaced Inria Sans. The
+     stack below is what renders before the webfont lands, so it names the
+     platform UI faces rather than falling straight to a generic. */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* §5's scale. Its H1/H2/H3 are --text-display/--text-h1/--text-h2: the
+     case heading renders at h1 when narrow and display at xl. --text-h3 is
+     this app's own, for the content panel's run-in subheads. */
+  --text-display:      2.25rem;   /* 36 */
+  --text-display--line-height: 2.75rem;  /* 44 */
+  --text-h1:           1.75rem;   /* 28 */
+  --text-h1--line-height:      2.25rem;  /* 36 */
+  --text-h2:           1.25rem;   /* 20 */
+  --text-h2--line-height:      1.75rem;  /* 28 */
+  --text-h3:           1rem;      /* 16 */
+  --text-h3--line-height:      1.5rem;   /* 24 */
+  --text-body:         1rem;      /* 16 */
+  --text-body--line-height:    1.6rem;   /* 25.6 = 1.6 */
+  --text-body-sm:      0.875rem;  /* 14 */
+  --text-body-sm--line-height: 1.3125rem;/* 21 = 1.5 */
+  --text-caption:      0.75rem;   /* 12 */
+  --text-caption--line-height: 1rem;     /* 16 */
+
+  /* ── Corner radii (design system §10, §11) ───── */
+  --radius-chip:   6px;
+  --radius-ctl:    10px;  /* their button: 40px tall, 10px radius */
+  --radius-card:   16px;
+
+  /* ── Shadows (§16) ────────────────────────────────────────────────────
+     Two layers each, not one. A single wide blur is a grey smudge under
+     the card and reads as haze; depth comes from pairing a tight contact
+     shadow (the edge actually meeting the page) with a wide ambient one.
+     Tinted toward the ink rather than pure black -- neutral black over a
+     cool ground goes muddy -- but never toward the brand. */
+  --shadow-sm: 0 1px 1px rgb(23 26 35 / .04), 0 2px 4px -1px rgb(23 26 35 / .06);
+  --shadow-md: 0 1px 2px rgb(23 26 35 / .05), 0 10px 24px -8px rgb(23 26 35 / .16);
+  --shadow-lg: 0 2px 4px rgb(23 26 35 / .06), 0 28px 56px -16px rgb(23 26 35 / .22);
+}
+
+/* Spacing keeps Tailwind's default 4px base (1 = 4px), so design system §6's
+   4·8·12·16·24·32·40·48·64 maps to 1·2·3·4·6·8·10·12·16. */
+
+/* ── Tour HUD tokens ─────────────────────────────────────────────────────────
+   Scoped to the guided-tour overlay ONLY -- not in @theme, so they generate
+   no bg-, text- or border- utilities and never touch the app's light-theme
+   palette above. T2 is the first consumer; this task only defines the
+   contract.
+
+   Direction B, not C: a muted rose in the SAME family as --color-brand
+   (#D94F70), just far less saturated -- leaving the tour should not feel
+   like leaving a different product.
+
+   Two accents, each with exactly one job -- not decoration, a system:
+     --hud-accent (muted rose)  "you are here" -- focus/current state only.
+     --hud-num    (champagne)   measurements only -- slice #, step #, readouts.
+   Tabular/monospace figures are reserved for --hud-num usage; nothing else
+   in the overlay should use a numeric font.
+
+   --hud-accent-strong is a companion, not a replacement: --hud-accent is
+   tuned for the dark glass chrome (card/rail/launcher) and reads at 1.8:1
+   on white -- unusable there. The ROI bracket in TourSpotlight sits on
+   arbitrary imagery, light panel surfaces included, so it needs a deeper
+   rose from the same family. Measured (contrastRatio in app/utils/contrast):
+   4.70:1 on --color-surface (#FFFFFF), 4.42:1 on --color-bg (#F7F8FA),
+   4.01:1 on --color-brand-subtle (#FCE8ED, the case-panel header fill),
+   3.95:1 on --hud-base -- clears the 3:1 graphics floor everywhere it can
+   land, on light or dark. */
+/* ── App glass ────────────────────────────────────────────────────────────
+   The recipe the app's own chrome is made of, consumed by `@utility pane`
+   at the foot of this file. Not in @theme: these are a material, not a
+   palette, and they should not generate bg-/border- utilities.
+
+   --glass-edge is the one that does the work. A 1px inner highlight along
+   the top of a pane is what makes it read as a physical sheet catching
+   light rather than as a flat rectangle; without it, translucency and blur
+   on their own just look like a washed-out box.
+
+   HONEST NOTE ON BLUR: this is a side-by-side layout, so on desktop the
+   header, sidebar and content column do not overlap anything -- the blur
+   there only lets the ground's tint through, it does not refract content.
+   The genuinely-glass moments are the below-xl drawers and bottom sheet
+   (which do cover the stage), the gutters between three-up panels, and the
+   tour HUD. */
+:root {
+  /* Both tints were first tried at .82 / .93 and the whole material change
+     was invisible on screen: at 93% white a pane transmits about 7% of what
+     is behind it, so the ground below might as well not exist. These are the
+     values at which the panes actually read as glass. */
+  --glass-tint:      rgb(255 255 255 / .66);
+  --glass-tint-high: rgb(255 255 255 / .76);
+  --glass-blur:      blur(24px) saturate(1.8);
+  --glass-edge:      inset 0 1px 0 rgb(255 255 255 / .95);
+  --glass-hairline:  inset 0 0 0 1px rgb(23 26 35 / .05);
+}
+
+:root {
+  --hud-base:  #14121A;
+  --hud-glass: rgb(20 18 26 / .74);
+  --hud-line:  rgb(255 245 240 / .14);
+  --hud-ink:   #F0ECEF;
+  --hud-dim:   #A39CA0;
+  --hud-accent: #E8B4B8;
+  --hud-accent-strong: #BD4E6C;
+  --hud-num:    #D8C3A5;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  /**
+   * Scrollbars, drawn rather than thinned. The platform bar is ~15px,
+   * opaque, and on Windows carries a stepper arrow at each end.
+   *
+   * `::-webkit-scrollbar` is the primary treatment, not a fallback: the
+   * standard properties cannot remove the arrows, set an exact width, or
+   * round the thumb -- and in Chromium a non-`auto` `scrollbar-width`
+   * makes the engine ignore every rule below. One mechanism has to win.
+   *
+   * The thumb is 4px inside a 10px gutter; a transparent border plus
+   * padding-box clipping is the only way to inset it. Its grey is under
+   * the 3:1 floor, which WCAG 1.4.11 permits for UA-drawn controls.
+   */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  /* The stepper arrows. Zeroing the size too: some builds reserve the
+     square even for a `display: none` button. */
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: --theme(--color-border-strong);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: --theme(--color-text-subtle);
+  }
+
+  /* Firefox, which has no `::-webkit-scrollbar`. Feature-detected rather
+     than global, because global is what disabled the block above on
+     Chromium. Inherited, so :root reaches every scroll container. */
+  @supports not selector(::-webkit-scrollbar) {
+    :root {
+      scrollbar-width: thin;
+      scrollbar-color: --theme(--color-border-strong) transparent;
+    }
+  }
+
+  body {
+    color: --theme(--color-text);
+    font-family: --theme(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* `cv11` gives Inter's single-storey `l` a tail, which is what stops
+       `Il1` collapsing in the slice readout; `ss01` is its open-digit
+       alternates. Both are no-ops on the fallback stack. */
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Design system §5: H1 tracks -0.03em. Inter is drawn on an optical size
+     axis and its default tracking is tuned for text, not for 28-36px
+     display, so the headings need it pulled in by hand. */
+  h1 {
+    letter-spacing: -0.03em;
+  }
+
+  h2, h3 {
+    letter-spacing: -0.015em;
+  }
+
+  /* One focus style everywhere (design doc §11) */
+  :focus-visible {
+    outline: 2px solid --theme(--color-brand);
+    outline-offset: 2px;
+  }
+
+  /* ── Guided tour: theatre mode ──────────────────────────────────────────
+     Everything that is not the current target drops back. `opacity` +
+     `saturate` only -- deliberately NOT `blur()`, which forces a whole
+     compositing layer (WebGL canvas included) to repaint every frame, and
+     the rotate step animates the camera at exactly this moment. Measured
+     cost of saturate on the GPU is effectively nil. */
+  /* `:not([data-tour-nodim])` is the escape hatch TourLayer sets whenever a
+     step resolved no region at all. Without it, "nothing matched" dimmed
+     EVERY region -- the reader got the whole app at 30% opacity and inert,
+     with the card pointing at something they could no longer see. */
+  body[data-tour-active]:not([data-tour-nodim]) [data-tour-region]:not([data-tour-focus]) {
+    opacity: .3;
+    filter: saturate(.25);
+    transition: opacity .4s ease, filter .4s ease;
+  }
+
+  body[data-tour-active] [data-tour-region][data-tour-focus] {
+    transition: opacity .4s ease, filter .4s ease;
+  }
+
+  /* ROI reticle scan line (TourSpotlight): one top-to-bottom pass across the
+     target, not a loop -- a permanently blinking overlay on medical imaging
+     is exactly the effect the HUD redesign rejects. `top` is a percentage of
+     the halo's own height, so it always spans exactly the target rect. */
+  @keyframes tour-scan {
+    0%   { top: 0%; opacity: 0; }
+    8%   { opacity: 1; }
+    92%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  /* Global constraint: prefers-reduced-motion disables motion, it does not
+   * merely shorten it. Zero duration/delay (not a "fast" 1ms) so transitions
+   * and animations resolve to their end state with no intermediate frames,
+   * and page/anchor scrolling jumps instead of animating. DefaultLayout.vue's
+   * drawer transition is the first thing in the app that animates; every
+   * later task's animation (Task 9/10 camera choreography included)
+   * inherits this rule for free because it's global, not per-component. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Suppress CasePanels' rose focus ring while the tour is active (T2 fix 3):
+   the brackets are the tour's focus indicator, so the two must not compete
+   for the same job. Unlayered so it beats border-brand/ring-brand, which
+   Tailwind emits into the utilities layer -- utilities always outrank
+   @layer base regardless of selector specificity. Non-tour appearance is
+   untouched: this selector only matches with data-tour-active present. */
+body[data-tour-active] [data-focused="true"] {
+  border-color: --theme(--color-border);
+  box-shadow: none;
+}
+
+/* ── The ground ───────────────────────────────────────────────────────────
+   What sits BEHIND the glass. Three very large, very low-alpha radials --
+   rose top-left, champagne top-right, medical blue bottom -- over the
+   neutral page colour. Every one is under 3% opacity: this has to give the
+   panes something to let through, not tint the room.
+
+   It deliberately never reaches an imaging surface. Panels stay opaque
+   neutral inside, because greyscale MRI read against a tinted background
+   is judged differently, and that is a diagnostic-honesty question rather
+   than a taste one.
+
+   `background-attachment: fixed` puts all three radials in VIEWPORT
+   coordinates, so any number of elements painting this utility line up
+   seamlessly -- which is what lets the layout root and the stage column
+   each carry their own copy without a visible seam between them. */
+@utility ground {
+  background-color: --theme(--color-bg);
+  background-image:
+    radial-gradient(1150px 800px at -6% 108%, rgb(217 79 112 / .10), transparent 62%),
+    radial-gradient(1080px 780px at 104% -8%, rgb(210 182 144 / .13), transparent 60%),
+    radial-gradient(1100px 900px at 34% -18%, rgb(40 90 122 / .09), transparent 62%);
+  background-attachment: fixed;
+}
+
+/* What a model or a slice is read against.
+   Deliberately HUE-FREE, unlike `ground`: a tint behind greyscale MRI or
+   mammography changes how those pixels are judged, which is a diagnostic
+   question rather than a taste one. What it does instead is a soft neutral
+   vignette -- brightest just above centre, falling away at the edges -- so
+   the subject sits in light rather than on a flat white field. The darkest
+   stop still clears the 3:1 non-text floor for the brand focus ring
+   (#D94F70 on #E4E6EC is 3.17:1). */
+@utility stage-ground {
+  background-image:
+    radial-gradient(125% 95% at 50% 36%, #FFFFFF 0%, #F5F6F9 46%, #E4E6EC 100%);
+}
+
+/* A pane of the app's glass: translucent white, blurred backdrop, specular
+   top edge, hairline, and the two-layer ambient shadow. `pane` is for
+   chrome that floats; `pane-flat` is the same material with no drop shadow,
+   for chrome that is docked to an edge and gets its separation from the
+   hairline alone (the header, the sidebar, the content column). */
+@utility pane {
+  background-color: var(--glass-tint);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge), var(--glass-hairline), --theme(--shadow-md);
+}
+
+@utility pane-flat {
+  background-color: var(--glass-tint-high);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge);
+}
+
+/* Drawers and the tablet bottom sheet -- the panes that genuinely cover
+   something. Each variant bakes its own elevation in rather than composing
+   with Tailwind's shadow-* utilities, because both write `box-shadow` and
+   the specular edge would be the one to lose. Use `md:pane-lift` and
+   friends to change elevation per tier. */
+@utility pane-lift {
+  background-color: var(--glass-tint-high);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge), --theme(--shadow-lg);
+}
+
+@utility prose-medical {
+  max-width: 65ch;
+  font-size: --theme(--text-body);
+  line-height: --theme(--text-body--line-height);
+
+  /* `pretty` asks the engine to look ahead a few lines and avoid leaving a
+     single word on the last one. It costs nothing where unsupported. */
+  text-wrap: pretty;
+  /* Clinical terms broken across a line ("fibro-adenoma") read as typos. */
+  hyphens: none;
+
+  /* The copy carries real `<b>` runs -- "<b>Breast density (B)</b>". 600,
+     not the UA's 700: at 16px in a narrow column, bold-700 next to regular
+     shouts rather than emphasises. */
+  & b,
+  & strong {
+    font-weight: 600;
+    color: --theme(--color-text);
+  }
+}

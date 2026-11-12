@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Not needed in the image
+tests/
+requirements-dev.txt
+docker-compose.yml
+
+# VCS & IDE
+.git
+.gitignore
+.idea/
+.vscode/
+
+# Env & OS
+.env
+*.log
+.DS_Store
+Thumbs.db

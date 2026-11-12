@@ -1,0 +1,28 @@
+# Plugin deployment: run by the portal's deployer as
+#   docker compose -p <expose_name> up --build -d --force-recreate
+# from code/resource-backend/ inside the plugin's SPARC dataset.
+#
+# The portal's nginx proxies /plugin/<expose_name>/ to the FIRST service
+# below, at <expose_name>-app-1:<port>. With no `ports:` entry the port it
+# assumes is 8082, which is what the Dockerfile listens on -- so do not
+# publish a port here, and keep `app` the first service.
+#
+# The standalone stack (own nginx, no portal) is ../docker-compose.yml. A
+# backend change that affects deployment must be made in both files.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # Nginx route prefix, /plugin/<expose_name>. The backend builds no
+      # absolute URLs today; it is passed through so it never has to guess.
+      - PLUGIN_ROUTE_PREFIX=${PLUGIN_ROUTE_PREFIX:-/plugin/breast-educational-resource}
+    restart: unless-stopped
+    networks:
+      - digitaltwins
+
+networks:
+  digitaltwins:
+    external: true
+    name: digitaltwins-platform   # = ${PROJECT_NAME} of the portal stack
