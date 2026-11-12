@@ -3,6 +3,7 @@
 import copy
 import json
 from pathlib import Path
+from typing import NamedTuple
 
 import nibabel as nib
 import numpy as np
@@ -262,3 +263,28 @@ def loaded_client_with_empty_mask(sparc_dataset, client, tool_config, cache_dir)
     assert client.post("/api/tool-config", json=tool_config).status_code == 200
     yield client
     patients.clear_mri_cache()
+
+
+class ReportInputs(NamedTuple):
+    """What the report builders take after the cohort: findings, volume bytes, mask bytes."""
+
+    findings: object
+    volume: bytes
+    mask: bytes
+
+
+@pytest.fixture()
+def loaded_service(fake_minio) -> ReportInputs:
+    """sub-1's parsed findings plus its contrast-1 volume and mask bytes, read through
+    `fake_minio` the way the report route reads them. Unpacks straight into
+    `build_report_html("sub-1", *loaded_service, zone)`."""
+    from app.reports import schema
+    from app.services.minio_service import MinIOService
+
+    service = MinIOService(client=fake_minio)
+    base = "http://localhost:9000/measurements/workdir/primary/sub-1"
+    return ReportInputs(
+        findings=schema.loads(service.read_object_bytes(f"{base}/sam-3/f.json")),
+        volume=service.read_object_bytes(f"{base}/sam-1/c1.nrrd"),
+        mask=service.read_object_bytes(f"{base}/sam-2/m.nii.gz"),
+    )
