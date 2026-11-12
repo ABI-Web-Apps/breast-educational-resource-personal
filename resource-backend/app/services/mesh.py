@@ -10,6 +10,7 @@ Everything happens in memory.
 """
 
 import logging
+import re
 
 import numpy as np
 import trimesh
@@ -21,6 +22,11 @@ from app.services.volume_reader import read_canonical
 logger = logging.getLogger(__name__)
 
 NEUTRAL_COLOR = "#94a3b8"
+
+#: Bump when the meshing changes, so cached GLBs from the old code are not served.
+MESH_VERSION = "v1"
+
+_HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 class MaskUnreadable(ValueError):
@@ -40,7 +46,10 @@ def mesh_in_patient_space(verts_index, normals_index, directions, origin):
     return verts, normals / np.where(lengths > 0, lengths, 1.0)
 
 
-def _rgb(color: str) -> list[int]:
+def _rgb(color) -> list[int]:
+    """`[r, g, b]` for a `#rrggbb` string; anything else (None, `#fff`, `red`) is neutral grey."""
+    if not isinstance(color, str) or not _HEX_COLOR.match(color):
+        color = NEUTRAL_COLOR
     text = color.lstrip("#")
     return [int(text[i : i + 2], 16) for i in (0, 2, 4)]
 
@@ -55,14 +64,14 @@ def mask_to_glb(nii_bytes: bytes, channel_colors: dict[int, str]) -> bytes | Non
     if read is None:
         raise MaskUnreadable("the mask could not be read in the canonical order")
     voxels, grid = read
-    data = np.rint(voxels).astype(np.int64)
+    data = np.rint(voxels).astype(np.uint8)
 
     scene = trimesh.Scene()
     for label in (int(v) for v in np.unique(data) if v != 0):
         channel = (data == label).astype(np.uint8) * 255
         try:
             verts_index, faces, normals_index, _ = marching_cubes(channel, level=127)
-        except (RuntimeError, ValueError) as exc:
+        except RuntimeError as exc:
             logger.warning("label %s has no surface: %s", label, exc)
             continue
         verts, normals = mesh_in_patient_space(verts_index, normals_index, grid.directions, grid.origin)

@@ -28,7 +28,6 @@ router = APIRouter()
 MRI_SAMPLE_TYPE = "contrast_1_nrrd"
 FINDINGS_SAMPLE_TYPE = "findings_json"
 MASK_SAMPLE_TYPE = "researcher_manual_LPS_nii"
-NEUTRAL_COLOR = "#94a3b8"
 
 #: Encoded volumes kept in memory, keyed by the source object's identity. Two entries bound the
 #: footprint to a pair of compressed volumes; nothing is ever written to disk.
@@ -173,5 +172,5 @@ def get_mask_glb(assay_uuid: str, cohort: str, service: MinIOService = Depends(g
             raise _error(404, "no_mask", f"The mask of cohort {cohort} is empty.")
         return glb
 
-    path = DerivedCache(Config.CACHE_DIR).get_or_build(f"glb:{mask_identity}:{findings_identity}", ".glb", build)
+    path = DerivedCache(Config.CACHE_DIR).get_or_build(f"glb:{mask_identity}:{findings_identity}:{mesh.MESH_VERSION}", ".glb", build)
     return FileResponse(path, media_type="model/gltf-binary")
