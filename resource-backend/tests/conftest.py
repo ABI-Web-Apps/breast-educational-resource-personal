@@ -125,3 +125,56 @@ def sparc_dataset(tmp_path) -> Path:
         }
     ).to_excel(root / "manifest.xlsx", index=False)
     return root
+
+
+class _FakeObject:
+    def __init__(self, payload: bytes):
+        self._payload = payload
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def close(self) -> None:
+        pass
+
+    def release_conn(self) -> None:
+        pass
+
+
+class _FakeStat:
+    def __init__(self, path: Path):
+        stat = path.stat()
+        self.size = stat.st_size
+        self.etag = f"{stat.st_mtime_ns:x}{stat.st_size:x}"
+
+
+class FakeMinio:
+    """The slice of the MinIO client the service calls, served from a folder on disk.
+
+    Bucket `measurements`; a key `workdir/primary/...` maps to `<parent of root>/workdir/...`.
+    """
+
+    def __init__(self, dataset_root: Path, bucket: str = "measurements"):
+        self._base = dataset_root.parent
+        self._bucket = bucket
+
+    def _path(self, bucket: str, key: str) -> Path:
+        from minio.error import S3Error
+
+        if bucket != self._bucket:
+            raise S3Error(None, "NoSuchBucket", "bucket missing", bucket, "req", "host")
+        path = self._base / key
+        if not path.is_file():
+            raise S3Error(None, "NoSuchKey", "key missing", key, "req", "host")
+        return path
+
+    def get_object(self, bucket: str, key: str) -> _FakeObject:
+        return _FakeObject(self._path(bucket, key).read_bytes())
+
+    def stat_object(self, bucket: str, key: str) -> _FakeStat:
+        return _FakeStat(self._path(bucket, key))
+
+
+@pytest.fixture()
+def fake_minio(sparc_dataset) -> FakeMinio:
+    return FakeMinio(sparc_dataset)
