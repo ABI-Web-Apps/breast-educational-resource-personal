@@ -9,6 +9,7 @@ from collections import OrderedDict
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from minio.error import S3Error
 from pydantic import ValidationError
 
 from app.reports import schema
@@ -75,9 +76,9 @@ def to_gzip_nrrd(raw: bytes) -> bytes:
 def _encoded_mri(service: MinIOService, url: str) -> bytes:
     try:
         identity = service.object_identity(url)
-    except Exception as e:
+    except S3Error as e:
         logger.warning("could not stat MRI %s: %s", url, e)
-        raise _error(404, "no_mri", "The MRI volume could not be read.")
+        raise _error(404, "no_mri", "The MRI volume could not be read.") from e
     with _mri_cache_lock:
         cached = _mri_cache.get(identity)
         if cached is not None:
@@ -91,7 +92,7 @@ def _encoded_mri(service: MinIOService, url: str) -> bytes:
         encoded = to_gzip_nrrd(raw)
     except (NrrdHeaderError, OSError, EOFError, zlib.error) as e:
         logger.warning("MRI %s is not a usable NRRD: %s", url, e)
-        raise _error(422, "invalid_mri", f"The MRI volume is not a readable NRRD: {e}")
+        raise _error(422, "invalid_mri", f"The MRI volume is not a readable NRRD: {e}") from e
 
     with _mri_cache_lock:
         _mri_cache[identity] = encoded
