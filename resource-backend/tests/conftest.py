@@ -221,3 +221,17 @@ def client(fake_minio):
     finally:
         app.dependency_overrides.pop(get_minio_service, None)
         registry.clear()
+
+
+@pytest.fixture()
+def loaded_client(client, tool_config):
+    """`client` after posting the shared tool config for sub-1 and sub-2 and draining the stream."""
+    from app.router import patients
+
+    tool_config["assay_info"]["cohorts"] = ["sub-1", "sub-2"]
+    patients.clear_mri_cache()
+    response = client.post("/api/tool-config", json=tool_config)
+    assert response.status_code == 200
+    assert "event: complete" in response.text
+    yield client
+    patients.clear_mri_cache()
