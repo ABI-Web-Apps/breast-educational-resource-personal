@@ -32,6 +32,7 @@ import { glob } from 'node:fs/promises'
 import { dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipNrrd } from './lib/nrrd-gzip.mjs'
+import { orientNrrd } from './lib/nrrd-orient.mjs'
 
 // Locate @gltf-transform/cli's bin entry point and run it with node. It is a
 // devDependency of resource-frontend/ — the repo's only Node project (yarn) —
@@ -143,9 +144,9 @@ try {
       if (rel.endsWith('.nrrd')) {
         const relPosix = rel.split(sep).join('/')
         if (SKIP_GZIP.includes(relPosix)) {
-          cpSync(from, to)
+          writeFileSync(to, orientNrrd(readFileSync(from)))
         } else {
-          writeFileSync(to, gzipNrrd(readFileSync(from)))
+          writeFileSync(to, gzipNrrd(orientNrrd(readFileSync(from))))
         }
       } else if (rel.endsWith('.glb')) {
         // Draco geometry compression. --simplify false: teaching models are
