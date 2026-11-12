@@ -18,9 +18,19 @@ services:
       # Nginx route prefix, /plugin/<expose_name>. The backend builds no
       # absolute URLs today; it is passed through so it never has to guess.
       - PLUGIN_ROUTE_PREFIX=${PLUGIN_ROUTE_PREFIX:-/plugin/breast-educational-resource}
+      # MinIO SDK credentials -- the portal's MinIO, on the shared network.
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_SERVER_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SERVER_SECRET_KEY:-minioadmin}
+      - DERIVED_CACHE_DIR=/resource_backend/cache
+    volumes:
+      - backend_cache:/resource_backend/cache
     restart: unless-stopped
     networks:
       - digitaltwins
+
+volumes:
+  backend_cache:
 
 networks:
   digitaltwins:

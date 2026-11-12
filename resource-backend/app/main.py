@@ -66,7 +66,7 @@ app = FastAPI(title="Breast Educational Resource", docs_url=None, redoc_url=None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_methods=["GET", "HEAD", "OPTIONS"],
+    allow_methods=["GET", "HEAD", "POST", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["Content-Length", "ETag"],
 )
