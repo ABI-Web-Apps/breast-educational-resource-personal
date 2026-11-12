@@ -2,18 +2,14 @@ import type { Ref } from 'vue'
 
 /**
  * These interfaces describe only what is actually reachable through
- * `copperRendererOnDemond` -- first written against copper3d 3.x by reading
- * the shipped `.d.ts` files AND the compiled bundle (the two disagree with
- * each other in a couple of places, see the comments below), and re-checked
- * against copper3d 4.1.4. `dist/bundle.esm.js:<line>` citations below point
- * into the 3.x bundle; 4.x ships it as `dist/bundle.esm.mjs` with different
- * line numbers, and every behaviour cited here still holds there.
+ * `copperRendererOnDemond` -- verified against copper3d 4.1.4 by reading
+ * the shipped `.d.ts` files AND the compiled `dist/bundle.esm.mjs` (the two
+ * disagree with each other in a couple of places, see the comments below).
  *
  * copper3d ships broader types built around its *other* renderer/scene
- * pair (`copperRenderer` / `copperScene`), which is not what this app uses
- * (design doc §8.2: one on-demand renderer). Extend this file, don't widen
- * it back toward those broader unions or fall back to `any` (global
- * constraint).
+ * pair (`copperRenderer` / `copperScene`), which is not what this app uses:
+ * it runs a single on-demand renderer. Extend this file, don't widen it
+ * back toward those broader unions or fall back to `any`.
  */
 
 /** The parts of three's Vector3 we use. */
@@ -96,21 +92,19 @@ export interface CopperControls {
   maxDistance?: number
   target?: Vec3
   /**
-   * Review fix #1: `copperSceneOnDemond`'s constructor does
-   * `new OrbitControls(this.camera, renderer.domElement)` against the
-   * *shared* canvas (Scene/copperSceneOnDemond.js:28) and wires
+   * `copperSceneOnDemond`'s constructor attaches its controls to the
+   * *shared* canvas (`renderer.domElement`) and wires
    * `controls.addEventListener("change", requestRenderIfNotRequested)`,
-   * which renders that specific scene. `setCurrentScene`
-   * (Renderer/copperRendererOnDemond.js:16-24) never disables the
-   * controls of whatever scene it's switching away from, so with more
+   * which renders that specific scene. `setCurrentScene` never disables
+   * the controls of whatever scene it's switching away from, so with more
    * than one cached scene, a single mouse drag reaches every one of
    * their controls and the last-created scene paints last, regardless of
    * which is actually on screen. `enabled` is the real off switch on
-   * `Copper3dTrackballControls` too (its own field, bundle.esm.js:66306;
-   * every pointer handler returns early on `scope.enabled === false`), so
-   * setting it `false` genuinely stops that scene's controls from ever
-   * dispatching `change`. useModalityScene sets this `false` on the
-   * outgoing scene and `true` on the incoming one at every switch.
+   * `Copper3dTrackballControls` too (its own field; every pointer handler
+   * returns early on `scope.enabled === false`), so setting it `false`
+   * genuinely stops that scene's controls from ever dispatching `change`.
+   * useModalityScene sets this `false` on the outgoing scene and `true` on
+   * the incoming one at every switch.
    */
   enabled: boolean
   /** The scene's constructor registers its own `requestRenderIfNotRequested`
@@ -124,8 +118,8 @@ export interface CopperControls {
    * From three's `EventDispatcher`, which `Controls` extends. The one
    * listener that matters here is the `change` handler
    * `copperSceneOnDemond`'s constructor registers
-   * (`controls.addEventListener("change", this.requestRenderIfNotRequested)`,
-   * dist/bundle.esm.js:84291) -- it is the reference chain that keeps an
+   * (`controls.addEventListener("change", this.requestRenderIfNotRequested)`)
+   * -- it is the reference chain that keeps an
    * evicted scene, and its decoded volume, reachable from the shared
    * canvas's own DOM listeners. Optional on this type only because a
    * copper3d upgrade could plausibly drop `EventDispatcher`; see
@@ -178,9 +172,10 @@ export interface NrrdVolume {
   RASDimensions: number[]
   windowHigh: number
   /**
-   * three's `Volume.computeMinMax()` result, cached on the instance. The
-   * display window is set to exactly these (bundle.esm.js:61725), which is
-   * why the tissue comes out dark -- see `ts/Utils/volumeExposure.ts`.
+   * three's `Volume.computeMinMax()` result (computed in copper3d's NRRD
+   * worker since 4.x), cached on the instance. The display window is set to
+   * exactly these, which is why the tissue comes out dark -- see copper3d's
+   * `exposureExponent`.
    */
   min: number
   max: number
@@ -266,7 +261,7 @@ export interface CopperScene extends CopperBaseScene {
   controls: CopperControls
   /**
    * The shared `WebGLRenderer` this scene draws with (`this.renderer`,
-   * assigned in `copperSceneOnDemond`'s constructor, bundle.esm.js:84400).
+   * assigned in `baseScene`'s constructor).
    * Needed only for `domElement` -- the canvas the replacement controls must
    * attach their pointer listeners to, the same element copper3d passed to
    * its own `new OrbitControls(this.camera, renderer.domElement)`.
@@ -275,7 +270,7 @@ export interface CopperScene extends CopperBaseScene {
   /**
    * copper3d's own record of the key this scene is registered under in
    * `CopperRenderer.sceneMap` (`baseScene`'s field, written by
-   * `createScene`, dist/bundle.esm.js:84350). §7.1's morph swaps a scene's
+   * `createScene`). The density morph swaps a scene's
    * contents without rebuilding it, so useModalityScene re-keys the scene
    * and keeps this in step -- a scene whose own `sceneName` disagreed with
    * the map it lives in is exactly the kind of quiet inconsistency the
@@ -394,15 +389,15 @@ export interface CopperScene extends CopperBaseScene {
    *
    * TWO things about the implementation matter to callers:
    *  · `mousePosition` is divided by `container.clientWidth/clientHeight`
-   *    (dist/bundle.esm.js:65336-65341, `baseRaycaster`), so the coordinates
+   *    (in `baseRaycaster`, which it calls), so the coordinates
    *    must be relative to the renderer's CONTAINER. The legacy passed
    *    `event.offsetX/offsetY`, which are relative to whatever element the
    *    pointer is over -- the same thing only while the canvas exactly fills
    *    the container. useSliceControl measures off the container's own
    *    `getBoundingClientRect()` instead.
    *  · Passing a single mesh PUSHES it onto the scene's retained
-   *    `pickableObjects` array; passing an ARRAY replaces that array
-   *    (dist/bundle.esm.js:68832-68839). Per-pointer-event calls must
+   *    `pickableObjects` array; passing an ARRAY replaces that array.
+   *    Per-pointer-event calls must
    *    therefore always pass an array, or the pickable list grows without
    *    bound for the life of the scene.
    */
@@ -431,10 +426,10 @@ export interface CopperScene extends CopperBaseScene {
    * unconditional.
    */
   confirmResize: () => void
-  // No `resetView` here: it exists only on `copperScene`
-  // (Scene/copperScene.d.ts:57, dist/bundle.esm.js:84635), not on
+  // No `resetView` here: it exists only on `copperScene` and `copperMScene`
+  // (Scene/copperScene.d.ts, Scene/copperMScene.d.ts), not on
   // `baseScene`/`copperSceneOnDemond`'s prototype chain (confirmed absent
-  // in Scene/baseScene.d.ts and Scene/commonSceneMethod.d.ts). Task 9/10's
+  // in Scene/baseScene.d.ts and Scene/commonSceneMethod.d.ts). The
   // "reset view" affordance and camera choreography need to build that
   // behaviour from what baseScene *does* provide instead: `loadView`
   // above, plus `getDefaultViewPoint`/`setViewPoint` if this interface
@@ -447,7 +442,7 @@ export interface CopperRenderer {
    * declares this as `copperScene | baseScene | copperMScene` -- a type
    * shared with the base renderer class. In practice, for this renderer,
    * `createScene` only ever stores `copperSceneOnDemond` instances in its
-   * scene map (dist/bundle.esm.js:84332-84354), so `CopperScene` above,
+   * scene map, so `CopperScene` above,
    * not that broader union, is what's actually returned here.
    */
   getSceneByName: (name: string) => CopperScene | undefined
@@ -473,7 +468,7 @@ export interface CopperRenderer {
    * `copperRendererOnDemond.sceneMap`: a plain object keyed by scene name,
    * public in copper3d 4.x's `.d.ts` so `disposeScene`/`removeSceneFromMap`
    * can unregister an entry -- once `createScene` registers a name, nothing
-   * else removes it. Review round 2, fix #1: useModalityScene needs exactly
+   * else removes it. useModalityScene needs exactly
    * this to stop a scene whose *content* failed to load (stall, timeout, a
    * refused orientation, bad view-preset) from sitting in the cache forever,
    * indistinguishable from a real successful load on the next
@@ -499,10 +494,9 @@ export interface CopperRenderer {
    * `dispose()` without `?`. Typing them optional here let a call site
    * write `renderer.value?.stop?.()`, which silently no-ops with no
    * compile error if either is ever renamed upstream -- exactly the
-   * teardown design doc §12.5 depends on. Verified `dispose()`
-   * (dist/bundle.esm.js:69962-69974) really does free the GPU context
-   * (`renderer.dispose()` + `renderer.forceContextLoss()`), not just stop
-   * the loop.
+   * teardown the stage depends on. Verified `baseRenderer.dispose()` really
+   * does free the GPU context (`renderer.dispose()` +
+   * `renderer.forceContextLoss()`), not just stop the loop.
    */
   stop: () => void
   dispose: () => void

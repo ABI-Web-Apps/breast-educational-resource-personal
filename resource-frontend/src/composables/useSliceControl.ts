@@ -91,7 +91,7 @@ export function useSliceControl(
   /**
    * `repaint()` is expensive: copper3d re-extracts the whole plane out of the
    * volume in JS and redraws its backing canvas
-   * (`Volume.extractPerpendicularPlane`, bundle.esm.js:60796), then the
+   * (three's `Volume.extractPerpendicularPlane`), then the
    * texture is re-uploaded on the next render. On this catalogue's larger
    * MRI volumes that is hundreds of thousands of iterations per call, so how
    * OFTEN it is called is the whole performance story of a scrub.

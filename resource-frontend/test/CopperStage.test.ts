@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { OrientationError } from 'copper3d'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CopperViewPoint } from '../src/composables/copper-types'
 import type { Modality, ModalityId } from '../src/content/types'
@@ -391,6 +392,35 @@ describe('CopperStage navigation choreography', () => {
     // The new guarantee this app now owns instead of copper3d: without this
     // call the model would decode perfectly and simply never appear.
     expect(scenes.get('/modelView/density-1/left/density25.glb')!.scene.add).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * copper3d 4.1 refuses a volume whose orientation it cannot establish,
+   * through `loadNrrd`'s `opts.onError`. The reader must see the stage's
+   * failure message, not a blank plane.
+   */
+  it('shows the failure alert when copper3d refuses the volume', async () => {
+    const refused = makeScene()
+    // Registered in `sceneMap` only, not this file's `scenes` lookup: a
+    // failed load evicts its scene, and copper3d's `removeSceneFromMap`
+    // checks the eviction took through `getSceneByName`, which here reads
+    // `scenes`.
+    renderer.createScene.mockImplementationOnce((name: string) => {
+      renderer.sceneMap[name] = refused
+      return refused
+    })
+    refused.loadNrrd.mockImplementation((...args: unknown[]) => {
+      (args[3] as { onError: (error: unknown) => void })
+        .onError(new OrientationError('no_space', 'The header has no space field'))
+    })
+
+    const wrapper = mountStage({ modality: MRI })
+    await settle()
+
+    expect(refused.loadNrrd).toHaveBeenCalledTimes(1)
+    const alert = wrapper.find('[role="alert"]')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain('Couldn\'t load the 3D viewer')
   })
 
   /**

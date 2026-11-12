@@ -163,14 +163,14 @@ export function useCopperStage(host: Ref<HTMLElement | undefined>, options: Stag
         guiOpen: false,
         alpha: true, // background is CSS-driven (design doc §5.3)
         logarithmicDepthBuffer: true,
-        // Deliberately NOT passing `light` or `controls` here: verified
-        // (dist/bundle.esm.js:69852-69907, baseRenderer's constructor) that
-        // `ICopperRenderOpt` has no `light` field baseRenderer reads, and
-        // `controls` is only consulted by the sibling `copperScene` class's
-        // constructor (dist/bundle.esm.js:83629-83637) -- `copperSceneOnDemond`
-        // (what this renderer actually builds) always instantiates
-        // OrbitControls regardless. Passing either here would be silently
-        // inert, not a real toggle -- see copper-types.ts's CopperControls.
+        // Deliberately NOT passing `light` or `controls` here: baseRenderer's
+        // constructor reads only `alpha`, `logarithmicDepthBuffer` and
+        // `guiOpen` from these options, and the `copperSceneOnDemond` scenes
+        // this renderer builds take their controls per scene, from
+        // `createScene(name, { controls })` (see useModalityScene), never
+        // from the renderer's own `options.controls`. Passing either here
+        // would be silently inert, not a real toggle -- see copper-types.ts's
+        // CopperControls.
       })
     }
     catch (err) {
