@@ -14,13 +14,14 @@ import { LEGACY_ROUTES } from '@/content/legacyRoutes'
  *   /                      -> redirect to /the-breast (pages/index.vue)
  *   LEGACY_ROUTES          -> redirect (nuxt.config.ts's routeRules)
  *   /about                 -> about (pages/about.vue)
+ *   /my-mri                -> the patient's own scan and report
  *   /:slug                 -> case, when the slug names an enabled case
  *   /:slug/:modality       -> case; an unknown modality falls back inside
  *                             the page, exactly as `[[modality]].vue` did
  *   anything else          -> 404 (the page's `validate` guard)
  */
 
-export type PageName = 'case' | 'about' | 'not-found'
+export type PageName = 'case' | 'about' | 'my-mri' | 'not-found'
 
 export interface PageRoute {
   /** Normalised: no query, no hash, no trailing slash (except `/`). */
@@ -56,6 +57,10 @@ export function resolvePath(raw: string): Resolution {
   // vue-router matches static segments case-insensitively by default.
   if (segments.length === 1 && segments[0]!.toLowerCase() === 'about') {
     return { route: { path, name: 'about', params: {} } }
+  }
+
+  if (segments.length === 1 && segments[0]!.toLowerCase() === 'my-mri') {
+    return { route: { path, name: 'my-mri', params: {} } }
   }
 
   if (segments.length <= 2 && segments.every(Boolean)) {

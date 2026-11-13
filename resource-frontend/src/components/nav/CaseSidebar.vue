@@ -5,11 +5,18 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { CASE_GROUP_LABEL, enabledCases } from '@/content/cases'
 import { organisations } from '@/content/team'
 import type { CaseGroup } from '@/content/types'
-import { GROUP_INK } from '@/utils/groupInk'
+import { GROUP_INK, RESULTS_INK } from '@/utils/groupInk'
 import AppLink from '@/navigation/AppLink.vue'
+import { useOptionalPageRoute } from '@/navigation/router'
 
 const store = useViewerStore()
 const { publicUrl } = useAssetUrl()
+
+// Pages are kept alive, so the page's own route is the one to read; the
+// stored case slug alone would keep a case row lit while My MRI is open.
+const pageRoute = useOptionalPageRoute()
+const onMyMri = computed(() => pageRoute?.value.name === 'my-mri')
+const activeCaseSlug = computed(() => (onMyMri.value ? null : store.caseSlug))
 
 /**
  * Per-group icon paths (client feedback item 9), drawn stroke-only at
@@ -55,6 +62,12 @@ const GROUP_ICON: Record<Exclude<CaseGroup, 'overview'>, string[]> = {
  * house -- roof, walls, door -- is unambiguous at 16-20px and reads as
  * "home" rather than "start".
  */
+/**
+ * YOUR RESULTS: a page with a folded corner and two text lines -- a report.
+ * Plain rectilinear strokes, which is what survives at 16px.
+ */
+const RESULTS_ICON = ['M7 3.5h7l4 4V20.5H7z', 'M14 3.5v4h4', 'M10 12.5h5', 'M10 16.5h5']
+
 const HOME_ICON = ['M4 11 12 4l8 7', 'M5.5 10.5v9.5h13v-9.5', 'M10 20v-6h4v6']
 
 /**
@@ -153,13 +166,13 @@ function onKeydown(event: KeyboardEvent) {
       data-home-row
       :to="`/${home.slug}`"
       class="tw:relative tw:-mt-1 tw:flex tw:min-h-11 tw:items-center tw:gap-2.5 tw:rounded-ctl tw:border-b tw:border-border tw:px-2 tw:pb-3 tw:text-body tw:font-bold"
-      :class="home.slug === store.caseSlug
+      :class="home.slug === activeCaseSlug
         ? 'tw:text-brand-hover'
         : 'tw:text-text tw:hover:bg-surface-sunken'"
-      :aria-current="home.slug === store.caseSlug ? 'page' : undefined"
+      :aria-current="home.slug === activeCaseSlug ? 'page' : undefined"
     >
       <span
-        v-if="home.slug === store.caseSlug"
+        v-if="home.slug === activeCaseSlug"
         data-active-indicator
         class="tw:absolute tw:inset-y-1 tw:left-0 tw:w-1 tw:rounded-r-full tw:bg-brand"
         aria-hidden="true"
@@ -207,18 +220,60 @@ function onKeydown(event: KeyboardEvent) {
           <AppLink
             :to="`/${c.slug}`"
             class="tw:relative tw:flex tw:min-h-11 tw:items-center tw:rounded-ctl tw:pl-4 tw:pr-2 tw:text-body-sm"
-            :class="c.slug === store.caseSlug
+            :class="c.slug === activeCaseSlug
               ? 'tw:bg-brand-subtle tw:font-bold tw:text-brand-hover'
               : 'tw:text-text-muted tw:hover:bg-surface-sunken tw:hover:text-text'"
-            :aria-current="c.slug === store.caseSlug ? 'page' : undefined"
+            :aria-current="c.slug === activeCaseSlug ? 'page' : undefined"
           >
             <span
-              v-if="c.slug === store.caseSlug"
+              v-if="c.slug === activeCaseSlug"
               data-active-indicator
               class="tw:absolute tw:inset-y-1 tw:left-0 tw:w-1 tw:rounded-r-full tw:bg-brand"
               aria-hidden="true"
             />
             {{ c.title }}
+          </AppLink>
+        </li>
+      </ul>
+    </div>
+
+    <div>
+      <h2
+        class="tw:mb-2 tw:flex tw:items-center tw:gap-1.5 tw:px-2 tw:text-caption tw:font-bold tw:uppercase tw:tracking-wide"
+        :class="RESULTS_INK"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          class="tw:size-4 tw:shrink-0"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path v-for="d in RESULTS_ICON" :key="d" :d="d" />
+        </svg>
+        Your results
+      </h2>
+      <ul class="tw:flex tw:flex-col tw:gap-0.5">
+        <li>
+          <AppLink
+            to="/my-mri"
+            class="tw:relative tw:flex tw:min-h-11 tw:flex-col tw:justify-center tw:rounded-ctl tw:pl-4 tw:pr-2 tw:text-body-sm"
+            :class="onMyMri
+              ? 'tw:bg-brand-subtle tw:font-bold tw:text-brand-hover'
+              : 'tw:text-text-muted tw:hover:bg-surface-sunken tw:hover:text-text'"
+            :aria-current="onMyMri ? 'page' : undefined"
+          >
+            <span
+              v-if="onMyMri"
+              data-active-indicator
+              class="tw:absolute tw:inset-y-1 tw:left-0 tw:w-1 tw:rounded-r-full tw:bg-brand"
+              aria-hidden="true"
+            />
+            My MRI
+            <span class="tw:text-caption tw:font-normal">Scan and report</span>
           </AppLink>
         </li>
       </ul>

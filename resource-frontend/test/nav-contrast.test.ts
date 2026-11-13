@@ -51,19 +51,19 @@ describe('CaseSidebar: active link ink on its highlight background (14px body te
 })
 
 describe('CaseSidebar: group headings carry the group ink on white (12px caption)', () => {
-  for (const group of ['group-anatomy', 'group-benign', 'group-cancer'] as const) {
+  for (const group of ['group-anatomy', 'group-benign', 'group-cancer', 'group-results'] as const) {
     it(`text-${group} meets AA body on white`, () => {
       expect(contrastRatio(t[group]!, t.surface!)).toBeGreaterThanOrEqual(AA_BODY)
     })
   }
 
-  it('the three groups are three different colours', () => {
+  it('the four groups are four different colours', () => {
     // Inequality only: telling blue from teal is a hue question and
     // contrastRatio is a luminance ratio (anatomy and benign are within
     // 1.28:1 and still obviously different). This still catches the
     // realistic regression, which is two groups collapsing onto one token.
-    const inks = [t['group-anatomy'], t['group-benign'], t['group-cancer']]
-    expect(new Set(inks).size).toBe(3)
+    const inks = [t['group-anatomy'], t['group-benign'], t['group-cancer'], t['group-results']]
+    expect(new Set(inks).size).toBe(4)
   })
 })
 

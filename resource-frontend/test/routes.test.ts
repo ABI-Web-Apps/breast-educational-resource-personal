@@ -8,6 +8,11 @@ import { HOME_PATH, normalisePath, resolveFinal, resolvePath } from '../src/navi
  * page with its `validate` guard, about.vue, and the router's own matching.
  */
 describe('route table', () => {
+  it('serves /my-mri, case-insensitively', () => {
+    expect(resolvePath('/my-mri')).toEqual({ route: { path: '/my-mri', name: 'my-mri', params: {} } })
+    expect(resolvePath('/MY-MRI')).toMatchObject({ route: { name: 'my-mri' } })
+  })
+
   it('sends the site root to the home case, as pages/index.vue did', () => {
     expect(resolvePath('/')).toEqual({ redirect: HOME_PATH })
     expect(resolveFinal('/')).toEqual({

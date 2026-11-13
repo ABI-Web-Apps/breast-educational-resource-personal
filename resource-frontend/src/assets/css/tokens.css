@@ -62,6 +62,7 @@
   --color-group-anatomy:  #285A7A;  /* Medical Blue            7.41:1 */
   --color-group-benign:   #26706D;  /* Supporting Teal, inked  5.80:1 */
   --color-group-cancer:   #8E3650;  /* Deep Burgundy           7.11:1 */
+  --color-group-results:  #5B3F99;  /* Violet, the patient's own results */
 
   /* The dark "reading lightbox" tokens are gone with the treatment they
      served -- every modality sits on one background now. */

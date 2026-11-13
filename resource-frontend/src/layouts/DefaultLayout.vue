@@ -7,6 +7,13 @@ import TourLauncher from '@/components/tour/TourLauncher.vue'
 import TourLayer from '@/components/tour/TourLayer.vue'
 const store = useViewerStore()
 
+/**
+ * At phone width the stage is an exact 1:1 square (the case viewer's rule).
+ * A page whose stage is stacked content rather than one canvas opts out and
+ * lets the stage take its natural height.
+ */
+withDefaults(defineProps<{ squareStage?: boolean }>(), { squareStage: true })
+
 // Tablet-only bottom-sheet pull state (design doc §10.2). Deliberately not
 // in the Pinia store: see contentOpen's comment in stores/viewer.ts for why
 // this needs to be its own field rather than reusing that one. Ephemeral by
@@ -163,7 +170,8 @@ onMounted(() => { tourMounted.value = true })
                xl+, which is a row layout instead. -->
           <section
             aria-label="3D case viewer"
-            class="tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:md:max-xl:min-h-100 tw:max-md:flex-none tw:max-md:aspect-square"
+            class="tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:md:max-xl:min-h-100 tw:max-md:flex-none"
+            :class="squareStage ? 'tw:max-md:aspect-square' : ''"
           >
             <slot name="stage" />
           </section>

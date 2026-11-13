@@ -1,3 +1,6 @@
+import { computed, defineComponent } from 'vue'
+import { providePageRoute } from '../src/navigation/router'
+import type { PageRoute } from '../src/navigation/routes'
 import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -57,7 +60,7 @@ describe('CaseSidebar', () => {
     // to /about at its foot and (since client feedback item 8) a dedicated
     // home row above the groups -- neither is a case bullet and neither may
     // be counted here.
-    const links = wrapper.findAll('li a')
+    const links = wrapper.findAll('li a').filter(a => a.attributes('href') !== '/my-mri')
       .map(el => wrapper.findAllComponents(AppLinkStub).find(c => c.element === el.element)!)
     const grouped = enabledCases().filter(c => c.slug !== 'the-breast')
     expect(links).toHaveLength(grouped.length)
@@ -104,10 +107,10 @@ describe('CaseSidebar', () => {
       expect(wrapper.get('[data-home-row]').attributes('aria-current')).toBeUndefined()
     })
 
-    it('renders exactly the three real group headings and no empty one', () => {
+    it('renders exactly the three real case group headings, then Your results', () => {
       const wrapper = mountSidebar()
       expect(wrapper.findAll('h2').map(h => h.text()))
-        .toEqual(['Breast Density', 'Benign Conditions', 'Breast Cancer'])
+        .toEqual(['Breast Density', 'Benign Conditions', 'Breast Cancer', 'Your results'])
     })
   })
 
@@ -122,7 +125,7 @@ describe('CaseSidebar', () => {
     it('each group heading has one, marked decorative', () => {
       const wrapper = mountSidebar()
       const headings = wrapper.findAll('h2')
-      expect(headings).toHaveLength(3)
+      expect(headings).toHaveLength(4)
       for (const h of headings) {
         const icons = h.findAll('svg')
         expect(icons).toHaveLength(1)
@@ -132,7 +135,7 @@ describe('CaseSidebar', () => {
 
     it('case rows keep their dot and gain no icon', () => {
       const wrapper = mountSidebar()
-      for (const row of wrapper.findAll('li a')) {
+      for (const row of wrapper.findAll('li a').filter(a => a.attributes('href') !== '/my-mri')) {
         expect(row.findAll('svg')).toHaveLength(0)
       }
     })
@@ -244,5 +247,44 @@ describe('CaseSidebar', () => {
    */
   it('does not put the app version in the persistent chrome', () => {
     expect(mountSidebar().find('[data-app-version]').exists()).toBe(false)
+  })
+})
+
+describe('CaseSidebar: YOUR RESULTS group', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+  afterEach(() => { document.body.innerHTML = '' })
+
+  function mountOn(route: PageRoute) {
+    const Host = defineComponent({
+      components: { CaseSidebar },
+      setup() { providePageRoute(computed(() => route)) },
+      template: '<CaseSidebar />',
+    })
+    return mount(Host, { global: { stubs: { AppLink: AppLinkStub } } })
+  }
+  const myMri: PageRoute = { path: '/my-mri', name: 'my-mri', params: {} }
+
+  it('lists YOUR RESULTS > My MRI after the cancer group', () => {
+    const headings = mountSidebar().findAll('h2').map(h => h.text().toLowerCase())
+    expect(headings.slice(-2)).toEqual(['breast cancer', 'your results'])
+  })
+
+  it('links My MRI to /my-mri with the subtitle', () => {
+    const link = mountSidebar().findAll('a').find(a => a.attributes('href') === '/my-mri')!
+    expect(link.text()).toContain('My MRI')
+    expect(link.text()).toContain('Scan and report')
+  })
+
+  it('marks My MRI active on /my-mri, and no case', () => {
+    const wrapper = mountOn(myMri)
+    const link = wrapper.findAll('a').find(a => a.attributes('href') === '/my-mri')!
+    expect(link.attributes('aria-current')).toBe('page')
+    expect(wrapper.findAll('[aria-current="page"]')).toHaveLength(1)
+  })
+
+  it('does not mark My MRI active on a case page', () => {
+    const wrapper = mountOn({ path: '/the-breast', name: 'case', params: { slug: 'the-breast' } })
+    const link = wrapper.findAll('a').find(a => a.attributes('href') === '/my-mri')!
+    expect(link.attributes('aria-current')).toBeUndefined()
   })
 })
