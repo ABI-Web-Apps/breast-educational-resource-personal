@@ -1,5 +1,6 @@
 import { Box3, MeshPhysicalMaterial, Vector3 } from 'three'
 import { onScopeDispose, ref, shallowRef } from 'vue'
+import { absoluteUrl } from '@/composables/assetUrl'
 import { useAssetUrl } from '@/composables/useAssetUrl'
 import { publicBase } from '@/runtime/env'
 import type { Modality } from '@/content/types'
@@ -848,9 +849,10 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
       try {
         // copper3d 4.1 reorders every volume into canonical LPS voxel order,
         // which is why the old `segmentation` flag (its approximation) is
-        // gone from this signature.
+        // gone from this signature. Absolute because the volume is fetched
+        // inside copper3d's `blob:` worker -- see `absoluteUrl`.
         target.loadNrrd(
-          assetUrl,
+          absoluteUrl(assetUrl, document.baseURI),
           bar,
           (volume, meshes, slices) => {
             settle()

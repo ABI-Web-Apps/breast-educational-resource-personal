@@ -228,8 +228,10 @@ describe('useMyMriScene', () => {
   it('adds all three planes and the mask placed in the patient frame', async () => {
     const { api } = await mountScene()
     expect(renderer.createScene).toHaveBeenCalledWith(expect.any(String), { controls: 'copper3d' })
-    expect(scene.loadNrrd).toHaveBeenCalledWith(MRI, expect.anything(), expect.any(Function),
-      expect.objectContaining({ axes: ['x', 'y', 'z'] }))
+    // Absolute: copper3d fetches the volume inside a `blob:` worker, which
+    // cannot resolve the root-relative `/api/...` -- see `absoluteUrl`.
+    expect(scene.loadNrrd).toHaveBeenCalledWith(new URL(MRI, document.baseURI).href, expect.anything(),
+      expect.any(Function), expect.objectContaining({ axes: ['x', 'y', 'z'] }))
     expect(api.status.value).toBe('loading')
 
     const { meshes } = landVolume()

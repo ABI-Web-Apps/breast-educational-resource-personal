@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
+import { PNG } from 'pngjs'
 
 /**
  * Shared locators for a page that mounts three stages at once.
@@ -86,4 +87,29 @@ export async function waitForAllPanels(page: Page) {
  */
 export async function waitForHydration(page: Page) {
   await page.locator('[data-tour-take]').waitFor({ state: 'visible', timeout: 15_000 })
+}
+
+/**
+ * Fraction of the CENTRAL half of `target` (by width and by height) that
+ * differs from the background, sampled just inside the top-left corner.
+ *
+ * The centre, because that is where every view puts its content, and where
+ * no overlay reaches: My MRI's Reset button, colour key and controls hint sit
+ * on the viewer's edges and would read as "drawn" on a blank canvas. A
+ * Playwright screenshot is the composited result -- see stage.spec.ts on why
+ * reading the WebGL canvas back does not work.
+ */
+export async function centreDrawnFraction(target: Locator): Promise<number> {
+  const { data, width, height } = PNG.sync.read(await target.screenshot())
+  const o = (24 * width + 24) * 4
+  const [br, bg, bb] = [data[o]!, data[o + 1]!, data[o + 2]!]
+  const [x0, x1, y0, y1] = [width / 4, (3 * width) / 4, height / 4, (3 * height) / 4].map(Math.round) as [number, number, number, number]
+  let drawn = 0
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * width + x) * 4
+      if (Math.abs(data[i]! - br) + Math.abs(data[i + 1]! - bg) + Math.abs(data[i + 2]! - bb) > 30) drawn++
+    }
+  }
+  return drawn / ((x1 - x0) * (y1 - y0))
 }

@@ -292,7 +292,10 @@ describe('useModalityScene', () => {
     const args = vi.mocked(scene.loadNrrd).mock.calls[0]! as unknown[]
 
     expect(args.length).toBe(4)
-    expect(args[0]).toBe('/modelView/density-1/right/mri.nrrd')
+    // Absolute: copper3d fetches the volume inside a `blob:` worker, which
+    // cannot resolve `/modelView/...` -- see `absoluteUrl`.
+    expect(args[0]).toBe(new URL('/modelView/density-1/right/mri.nrrd', document.baseURI).href)
+    expect(args[0]).toMatch(/^https?:\/\//)
     expect(typeof args[2]).toBe('function')
     expect(typeof (args[3] as { onError?: unknown }).onError).toBe('function')
 
@@ -1001,7 +1004,9 @@ describe('useModalityScene', () => {
       asset: 'density-1/middle/m3d.nrrd', viewPreset: 'density-1/middle/m_view.json',
     }))
     const [nrrdUrl] = vi.mocked(scene.loadNrrd).mock.calls[0]!
-    expect(nrrdUrl).toBe('/modelView/density-1/middle/m3d.nrrd')
+    // Made absolute against the page for copper3d's worker; the path is the
+    // asset base's.
+    expect(nrrdUrl).toBe(new URL('/modelView/density-1/middle/m3d.nrrd', document.baseURI).href)
     resolveNrrd(scene)
     await loadPromise
 

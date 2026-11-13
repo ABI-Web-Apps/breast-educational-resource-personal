@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assetUrl, resolveAssetBase } from '../src/composables/assetUrl'
+import { absoluteUrl, assetUrl, resolveAssetBase } from '../src/composables/assetUrl'
 
 describe('assetUrl', () => {
   it('joins a same-origin base with a relative path', () => {
@@ -54,5 +54,41 @@ describe('resolveAssetBase', () => {
 
   it('is a no-op when app.baseURL is empty', () => {
     expect(resolveAssetBase('/modelView/', '')).toBe('/modelView/')
+  })
+})
+
+/**
+ * copper3d 4.1's `loadNrrd` fetches inside a Web Worker started from a
+ * `blob:` URL. A worker resolves `fetch` against its own URL, and nothing
+ * relative can be parsed against `blob:` -- so the standalone and plugin
+ * builds' root-relative `/api/...` URLs failed before any request went out,
+ * while `yarn dev`'s absolute `http://localhost:8082/api/...` worked.
+ */
+describe('absoluteUrl', () => {
+  const page = 'https://portal.example.org/plugin/ber/my-mri'
+
+  it('resolves a root-relative URL against the page origin', () => {
+    expect(absoluteUrl('/api/modelView/density-1/right/mri.nrrd', page))
+      .toBe('https://portal.example.org/api/modelView/density-1/right/mri.nrrd')
+  })
+
+  it('keeps a plugin route prefix', () => {
+    expect(absoluteUrl('/plugin/ber/api/patients/a-1/sub-1/mri', page))
+      .toBe('https://portal.example.org/plugin/ber/api/patients/a-1/sub-1/mri')
+  })
+
+  it('resolves a path-relative URL against the page\'s folder', () => {
+    expect(absoluteUrl('modelView/a.nrrd', 'https://host.example.org/te-uma/density-a/mri'))
+      .toBe('https://host.example.org/te-uma/density-a/modelView/a.nrrd')
+  })
+
+  it('returns an absolute URL unchanged', () => {
+    expect(absoluteUrl('http://localhost:8082/api/modelView/a.nrrd', page))
+      .toBe('http://localhost:8082/api/modelView/a.nrrd')
+  })
+
+  it('produces a URL a blob: base cannot break', () => {
+    const resolved = absoluteUrl('/api/x.nrrd', page)
+    expect(new URL(resolved, 'blob:https://portal.example.org/0b1c').href).toBe(resolved)
   })
 })

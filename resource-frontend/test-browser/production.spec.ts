@@ -4,7 +4,7 @@ import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createGzip } from 'node:zlib'
 import { expect, test } from '@playwright/test'
-import { focusedPanel, waitForModality } from './helpers'
+import { centreDrawnFraction, focusedPanel, focusedStage, waitForModality } from './helpers'
 
 /**
  * The §12 criteria that can only be measured against what actually ships.
@@ -46,7 +46,9 @@ import { focusedPanel, waitForModality } from './helpers'
  */
 
 const PUBLIC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../build')
-const PORT = 3159
+// Not 3159: that is where this repo's Docker stack publishes its frontend
+// (`FRONTEND_PORT=3159`), and this suite has to run beside it.
+const PORT = 4180
 const base = `http://localhost:${PORT}`
 
 const TYPES: Record<string, string> = {
@@ -174,6 +176,66 @@ test.describe('§12 acceptance, against the built site', () => {
       'design doc §9.2: the entry point loads no volume',
     ).toEqual([])
     expect(total, 'design doc §12 item 7: first screen under 3MB').toBeLessThan(3 * 1024 * 1024)
+  })
+
+  /**
+   * An imaging volume loads and paints, on the artefact that ships.
+   *
+   * copper3d 4.1 fetches every NRRD inside a Web Worker started from a
+   * `blob:` URL, where a root-relative URL cannot be parsed. `yarn dev` hands
+   * it an absolute URL (the backend on :8082), so every dev-server spec
+   * passed while this build showed "Couldn't load the 3D viewer" on every
+   * imaging modality and never requested a single volume. One volume of
+   * each kind: the 3D MRI and the 3D mammogram.
+   */
+  for (const path of ['/density-a/mri', '/cancer-ductal/mammogram']) {
+    test(`an imaging volume loads and paints: ${path}`, async ({ page }) => {
+      const volumes: string[] = []
+      page.on('response', (r) => { if (r.url().endsWith('.nrrd')) volumes.push(`${r.status()} ${r.url()}`) })
+
+      await page.setViewportSize({ width: 1280, height: 800 })
+      await page.goto(`${base}${path}`)
+      await waitForModality(page)
+      // Healthy means the volume is in the scene: the stage enables Reset
+      // only then, and a failed load never gets there.
+      await expect(focusedPanel(page).getByRole('button', { name: /reset/i })).toBeEnabled({ timeout: 60_000 })
+      await expect.poll(() => centreDrawnFraction(focusedStage(page)), {
+        message: 'the stage is healthy but drew no image',
+        timeout: 30_000,
+      }).toBeGreaterThan(0.2)
+      await expect(page.getByRole('alert')).toHaveCount(0)
+      expect(volumes.length, 'no volume was requested').toBeGreaterThan(0)
+      expect(volumes.every(v => v.startsWith('200 ')), volumes.join('\n')).toBe(true)
+    })
+  }
+
+  /**
+   * My MRI's volume goes through the same worker, from its own call site.
+   *
+   * Needs the backend to open the patient dataset (this repo's MinIO on :9010
+   * with the SPARC dataset uploaded). When it cannot, the page shows its own
+   * session error and never mounts the viewer -- that is the environment, not
+   * the code under test, so the test skips rather than fails.
+   */
+  test('My MRI loads the scan and paints it', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${base}/my-mri`)
+
+    const viewer = page.getByRole('img', { name: 'Your MRI scan in 3D' })
+    // The 3D column's session error -- the only live one. The report column
+    // has an error state of its own (a local backend cannot render the PDF),
+    // which says nothing about the scan.
+    const sessionError = page.locator('[data-state="error"][role="alert"]')
+    await expect(viewer.or(sessionError)).toBeVisible({ timeout: 60_000 })
+    test.skip(await sessionError.isVisible(), 'the backend could not open the patient dataset (MinIO on :9010?)')
+
+    // Enabled once the volume has loaded and been placed.
+    await expect(page.getByRole('button', { name: 'Reset the 3D view' })).toBeEnabled({ timeout: 120_000 })
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect.poll(() => centreDrawnFraction(viewer), {
+      message: 'the viewer is ready but drew no scan',
+      timeout: 30_000,
+    }).toBeGreaterThan(0.2)
   })
 
   test('a deep link boots and renders', async ({ page }) => {

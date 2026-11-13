@@ -48,6 +48,24 @@ export const pwaOptions: Partial<VitePWAOptions> = {
 }
 
 /**
+ * `import.meta.url` for the UMD bundle: the URL of the script being evaluated.
+ *
+ * A UMD bundle has no `import.meta`, and Rolldown -- unlike Rollup, which
+ * polyfilled it from `document.currentScript` -- replaces it with `{}`. Since
+ * three 0.186, DRACOLoader and KTX2Loader (both pulled in by copper3d 4.1)
+ * build `new URL(<asset>, import.meta.url)` at module scope, so the base was
+ * the string "undefined", `new URL` threw while the bundle was still
+ * evaluating, and the plugin's global was never defined.
+ *
+ * Read in the intro, i.e. during that synchronous evaluation, the one moment
+ * `document.currentScript` is set (the portal adds the bundle as a `<script>`
+ * element). A read, not a side effect -- the same one `src/runtime/env.ts`
+ * makes.
+ */
+const BUNDLE_URL = '__BER_BUNDLE_URL__'
+const bundleUrlIntro = `var ${BUNDLE_URL} = typeof document === 'undefined' ? 'file:///' : (document.currentScript && document.currentScript.src) || document.baseURI;`
+
+/**
  * Two builds from one source tree:
  *
  *   yarn build          the standalone site (index.html, PWA) -> build/
@@ -93,8 +111,11 @@ export default defineConfig(({ command }) => {
       __APP_VERSION__: JSON.stringify(readAppVersion(fileURLToPath(new URL('./package.json', import.meta.url)))),
       // A UMD bundle runs straight in the browser, where `process` does not
       // exist; library mode leaves `process.env.NODE_ENV` in place for a
-      // consumer's bundler that will never come.
-      ...(isPluginBuild ? { 'process.env.NODE_ENV': JSON.stringify('production') } : {}),
+      // consumer's bundler that will never come. `import.meta.url`: see
+      // `BUNDLE_URL`.
+      ...(isPluginBuild
+        ? { 'process.env.NODE_ENV': JSON.stringify('production'), 'import.meta.url': BUNDLE_URL }
+        : {}),
     },
 
     resolve: {
@@ -126,6 +147,7 @@ export default defineConfig(({ command }) => {
           rollupOptions: {
             external: ['vue', 'vuetify', 'pinia', 'vue-toastification'],
             output: {
+              intro: bundleUrlIntro,
               globals: {
                 'vue': 'Vue',
                 'vuetify': 'Vuetify',

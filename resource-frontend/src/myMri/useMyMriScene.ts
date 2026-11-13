@@ -3,6 +3,7 @@ import type { Material, Matrix4, Mesh, Object3D } from 'three'
 import { onActivated, onDeactivated, onScopeDispose, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import { MY_MRI_COPY } from '@/content/myMri'
+import { absoluteUrl } from '@/composables/assetUrl'
 import type { CopperModule, CopperScene, CopperViewPoint, NrrdMeshes, NrrdSlice, NrrdVolume } from '@/composables/copper-types'
 import type { FitBounds } from '@/composables/copperExtras'
 import {
@@ -395,7 +396,9 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
   function loadVolume(target: CopperScene, Copper: CopperModule) {
     arm(NRRD_STALL_TIMEOUT_MS, MY_MRI_COPY.viewerErrors.stalled)
     target.loadNrrd(
-      sources.mri,
+      // Absolute because the volume is fetched inside copper3d's `blob:`
+      // worker -- see `absoluteUrl`.
+      absoluteUrl(sources.mri, document.baseURI),
       Copper.loading(),
       (volume, meshes, slices) => onVolume(target, volume, meshes, slices),
       {
