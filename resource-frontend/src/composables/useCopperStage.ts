@@ -40,7 +40,7 @@ export interface StageOptions {
   onResize?: (box: { width: number, height: number }) => void
 }
 
-export function useCopperStage(host: Ref<HTMLElement | undefined>, options: StageOptions = {}): StageApi {
+export function useCopperStage(host: Ref<HTMLElement | null | undefined>, options: StageOptions = {}): StageApi {
   const renderer = shallowRef<CopperRenderer>()
   const Copper = shallowRef<CopperModule>()
   const ready = ref(false)

@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import type { VolumeOrientation } from 'copper3d'
 
 /**
  * These interfaces describe only what is actually reachable through
@@ -42,6 +43,10 @@ export interface CopperCamera {
    * because this type is the app's whole view of it.
    */
   fov: number
+  /** Clipping planes, written by the My MRI view: its far plane has to cover a
+   *  fully zoomed-out camera, which a preset's fixed value does not. */
+  near: number
+  far: number
 }
 
 /**
@@ -92,6 +97,13 @@ export interface CopperControls {
   maxDistance?: number
   target?: Vec3
   /**
+   * copper3d 3.10.0. The world point a rotate gesture turns the camera rig
+   * about, so a rotation after a pan turns the content on the spot instead of
+   * swinging it around the panned-to target. `null` (the default) orbits
+   * `target`.
+   */
+  rotationPivot: Vec3 | null
+  /**
    * `copperSceneOnDemond`'s constructor attaches its controls to the
    * *shared* canvas (`renderer.domElement`) and wires
    * `controls.addEventListener("change", requestRenderIfNotRequested)`,
@@ -136,6 +148,9 @@ export interface CopperControls {
 export interface NrrdSlice {
   index: number
   MaxIndex: number
+  /** `RASDimensions - 1` along this slice's axis: the plane for `index` sits
+   *  at `index - RSAMaxIndex / 2` in the world. */
+  RSAMaxIndex: number
   volume: { spacing: number[] }
   repaint: (this: NrrdSlice) => void
 }
@@ -183,6 +198,12 @@ export interface NrrdVolume {
    *  distribution and never writes one. */
   data: ArrayLike<number>
   repaintAllSlices: () => void
+  /**
+   * copper3d 4.1. How the file reached the canonical voxel order, and
+   * `geometry`: the canonical grid in patient LPS, never snapped (unlike
+   * `volume.matrix`). The My MRI view places its mask with it.
+   */
+  orientation: VolumeOrientation
 }
 
 export interface LoadingBar {
@@ -278,6 +299,12 @@ export interface CopperScene extends CopperBaseScene {
    */
   sceneName: string
   /**
+   * `baseScene`'s public flag, set by `loadView`. While it is unset,
+   * `loadGltf` moves the camera to frame the model it has just loaded. The
+   * My MRI view frames on its slice planes, not on its mask, so it sets this.
+   */
+  cameraPositionFlag: boolean
+  /**
    * `copperSceneOnDemond`'s per-frame render request
    * (Scene/copperSceneOnDemond.d.ts:12), declared as a property rather than
    * a method, so reading it back gives the exact function reference its
@@ -312,7 +339,8 @@ export interface CopperScene extends CopperBaseScene {
   loadNrrd: (
     url: string,
     loadingBar: LoadingBar,
-    callback: (volume: NrrdVolume, meshes: NrrdMeshes, slices: { z: NrrdSlice }) => void,
+    // `x` and `y` exist only when `axes` asks for them.
+    callback: (volume: NrrdVolume, meshes: NrrdMeshes, slices: { x?: NrrdSlice, y?: NrrdSlice, z: NrrdSlice }) => void,
     opts?: {
       openGui?: boolean
       /**
@@ -336,6 +364,9 @@ export interface CopperScene extends CopperBaseScene {
        *  also carries `OrientationError` (an `Error` subclass with a stable
        *  `code`) for a volume the loader refuses to orient. */
       onError?: (error: unknown) => void
+      /** copper3d 3.10.0. Aborting stops the transfer itself; `onError` then
+       *  fires with a `DOMException` named `AbortError`. */
+      signal?: AbortSignal
     },
   ) => void
   /**

@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MY_MRI_COPY, colourSentence } from '../src/content/myMri'
 import { getToolConfig } from '../src/myMri/config'
@@ -14,6 +15,13 @@ const DefaultLayoutStub = {
       <div class="content-slot"><slot name="content" /></div>
     </div>
   `,
+}
+/** The viewer's own scene is covered by useMyMriScene.test.ts; here it only reports. */
+const MyMriViewerStub = {
+  name: 'MyMriViewer',
+  props: ['mri', 'mask', 'findings'],
+  emits: ['error'],
+  template: '<div data-slot="my-mri-viewer" />',
 }
 const enc = new TextEncoder()
 const completeStream = () => new Response(new ReadableStream<Uint8Array>({
@@ -45,7 +53,7 @@ describe('MyMriPage', () => {
   beforeEach(() => { setActivePinia(createPinia()); stubBackend(noFindings) })
   const mountPage = () => track(mount(MyMriPage, {
     props: { route },
-    global: { stubs: { DefaultLayout: DefaultLayoutStub } },
+    global: { stubs: { DefaultLayout: DefaultLayoutStub, MyMriViewer: MyMriViewerStub } },
   }))
 
   it('renders the heading with the cohort from the config', () => {
@@ -76,7 +84,7 @@ describe('MyMriPage session states', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
   const mountPage = () => track(mount(MyMriPage, {
     props: { route },
-    global: { stubs: { DefaultLayout: DefaultLayoutStub } },
+    global: { stubs: { DefaultLayout: DefaultLayoutStub, MyMriViewer: MyMriViewerStub } },
   }))
 
   it('shows loading text in both columns, then the placeholders when ready', async () => {
@@ -110,6 +118,37 @@ describe('MyMriPage session states', () => {
     await flushPromises()
     expect(wrapper.findAll('[role="alert"]')).toHaveLength(1)
     expect(wrapper.findAll('[data-state="error"]')).toHaveLength(2)
+  })
+
+  it('hands the viewer the patient MRI, mask and findings once ready', async () => {
+    stubBackend(() => jsonRes(200, { findings: [
+      { label: 'Finding 1', lesion: { channel: 1, color: '#ff7043' } },
+    ] }))
+    const wrapper = mountPage()
+    expect(wrapper.findComponent({ name: 'MyMriViewer' }).exists()).toBe(false)
+    await flushPromises()
+    const viewer = wrapper.getComponent({ name: 'MyMriViewer' })
+    expect(viewer.props('mri')).toMatch(/\/api\/patients\/a-1\/sub-1\/mri$/)
+    expect(viewer.props('mask')).toMatch(/\/api\/patients\/a-1\/sub-1\/mask\.glb$/)
+    expect(viewer.props('findings')).toEqual([{ label: 'Finding 1', channel: 1, color: '#ff7043' }])
+  })
+
+  it('shows a viewer failure in the 3D column only, and Try again reloads', async () => {
+    stubBackend(noFindings)
+    const wrapper = mountPage()
+    await flushPromises()
+    wrapper.getComponent({ name: 'MyMriViewer' }).vm.$emit('error', 'Your scan could not be loaded.')
+    await nextTick()
+    const errors = wrapper.findAll('[data-state="error"]')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]!.text()).toContain('Your scan could not be loaded.')
+    expect(wrapper.find('[data-slot="my-mri-report"]').exists()).toBe(true)
+    expect(wrapper.findAll('[role="alert"]')).toHaveLength(1)
+
+    await errors[0]!.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-state]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MyMriViewer' }).exists()).toBe(true)
   })
 
   it('shows the colour sentence once findings are loaded', async () => {
@@ -150,6 +189,7 @@ describe('MyMriPage inside the real layout', () => {
           CaseSidebar: { template: '<nav />' },
           TourLauncher: true,
           TourLayer: true,
+          MyMriViewer: MyMriViewerStub,
         },
       },
     }))

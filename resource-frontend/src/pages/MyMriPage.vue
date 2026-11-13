@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import MyMriColumnState from '@/components/myMri/MyMriColumnState.vue'
+import MyMriViewer from '@/components/myMri/MyMriViewer.vue'
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 import { MY_MRI_COPY, colourSentence } from '@/content/myMri'
 import type { FindingColour } from '@/content/myMri'
@@ -13,13 +14,26 @@ const props = defineProps<{ route: PageRoute }>()
 providePageRoute(computed(() => props.route))
 
 const session = useMyMriSession()
-const { cohort, status, error, progress, total, reload } = session
+const { cohort, status, error, progress, total, reload, urls } = session
+const findingSummaries = session.findings
 
 const findings = computed<FindingColour[]>(() => session.findings.value)
 const progressText = computed(() => total.value > 0
   ? `${MY_MRI_COPY.loading} (${progress.value} of ${total.value})`
   : MY_MRI_COPY.loading)
 const sentence = computed(() => colourSentence(findings.value))
+
+/**
+ * The 3D column has a failure of its own: the session can be ready and the
+ * scan still fail to load or display. It shows in the column like a session
+ * error, with the same Try again, and is forgotten once the session reloads.
+ */
+const viewerError = ref<string | null>(null)
+watch(status, (next) => {
+  if (next !== 'ready') viewerError.value = null
+})
+const viewerStatus = computed(() => (status.value === 'ready' && viewerError.value ? 'error' : status.value))
+const viewerSummary = computed(() => viewerError.value ?? error.value?.summary)
 
 useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
 </script>
@@ -42,8 +56,15 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
           <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
             {{ MY_MRI_COPY.viewerHeading }}
           </h2>
-          <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" live @retry="reload()">
-            <div data-slot="my-mri-viewer" class="tw:h-full" />
+          <MyMriColumnState :status="viewerStatus" :summary="viewerSummary" :progress-text="progressText" live @retry="reload()">
+            <MyMriViewer
+              v-if="urls"
+              :key="urls.mri"
+              :mri="urls.mri"
+              :mask="urls.mask"
+              :findings="findingSummaries"
+              @error="viewerError = $event"
+            />
           </MyMriColumnState>
         </section>
         <section class="tw:flex tw:min-h-80 tw:xl:min-h-0 tw:flex-col tw:rounded-card tw:border tw:border-border tw:bg-surface-sunken">
