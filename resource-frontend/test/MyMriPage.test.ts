@@ -24,6 +24,11 @@ const MyMriViewerStub = {
   mounted() { viewerMounts++ },
   template: '<div data-slot="my-mri-viewer" />',
 }
+const MyMriReportStub = {
+  name: 'MyMriReport',
+  props: ['urlFor', 'cohort', 'withReload'],
+  template: '<div data-slot="my-mri-report" />',
+}
 const enc = new TextEncoder()
 const completeStream = () => new Response(new ReadableStream<Uint8Array>({
   start(c) {
@@ -54,7 +59,7 @@ describe('MyMriPage', () => {
   beforeEach(() => { setActivePinia(createPinia()); stubBackend(noFindings) })
   const mountPage = () => track(mount(MyMriPage, {
     props: { route },
-    global: { stubs: { DefaultLayout: DefaultLayoutStub, MyMriViewer: MyMriViewerStub } },
+    global: { stubs: { DefaultLayout: DefaultLayoutStub, MyMriViewer: MyMriViewerStub, MyMriReport: MyMriReportStub } },
   }))
 
   it('renders the heading with the cohort from the config', () => {
@@ -85,7 +90,7 @@ describe('MyMriPage session states', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
   const mountPage = () => track(mount(MyMriPage, {
     props: { route },
-    global: { stubs: { DefaultLayout: DefaultLayoutStub, MyMriViewer: MyMriViewerStub } },
+    global: { stubs: { DefaultLayout: DefaultLayoutStub, MyMriViewer: MyMriViewerStub, MyMriReport: MyMriReportStub } },
   }))
 
   it('shows loading text in both columns, then the placeholders when ready', async () => {

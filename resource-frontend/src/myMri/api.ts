@@ -136,3 +136,13 @@ export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T
     throw toMyMriError(e)
   }
 }
+
+export async function fetchBlob(url: string, signal?: AbortSignal): Promise<Blob> {
+  try {
+    const res = await fetch(url, { signal })
+    if (!res.ok) throw await errorFromResponse(res)
+    return await res.blob()
+  } catch (e) {
+    throw toMyMriError(e)
+  }
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import MyMriColumnState from '@/components/myMri/MyMriColumnState.vue'
+import MyMriReport from '@/components/myMri/MyMriReport.vue'
 import MyMriViewer from '@/components/myMri/MyMriViewer.vue'
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 import { MY_MRI_COPY, colourSentence } from '@/content/myMri'
@@ -13,7 +14,7 @@ const props = defineProps<{ route: PageRoute }>()
 providePageRoute(computed(() => props.route))
 
 const session = useMyMriSession()
-const { cohort, status, error, progress, total, reload, urls, findings } = session
+const { cohort, status, error, progress, total, reload, urls, findings, withReload } = session
 
 const progressText = computed(() => total.value > 0
   ? `${MY_MRI_COPY.loading} (${progress.value} of ${total.value})`
@@ -60,12 +61,18 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
           </MyMriColumnState>
         </section>
         <section class="tw:flex tw:min-h-80 tw:xl:min-h-0 tw:flex-col tw:rounded-card tw:border tw:border-border tw:bg-surface-sunken">
-          <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
-            {{ MY_MRI_COPY.reportHeading }}
-          </h2>
-          <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" @retry="reload()">
-            <div data-slot="my-mri-report" class="tw:h-full" />
-          </MyMriColumnState>
+          <MyMriReport
+            v-if="status === 'ready' && urls"
+            :url-for="urls.report"
+            :cohort="cohort"
+            :with-reload="withReload"
+          />
+          <template v-else>
+            <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
+              {{ MY_MRI_COPY.reportHeading }}
+            </h2>
+            <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" @retry="reload()" />
+          </template>
         </section>
       </div>
     </template>
