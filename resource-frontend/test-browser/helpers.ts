@@ -134,17 +134,23 @@ export async function waitForHydration(page: Page) {
 
 /**
  * Fraction of the CENTRAL half of `target` (by width and by height) that
- * differs from the background, sampled just inside the top-left corner.
+ * differs from the background, sampled just inside the top-left corner, or
+ * with `background: 'left-edge'` just inside the middle of the left edge.
  *
  * The centre, because that is where every view puts its content, and where
- * no overlay reaches: My MRI's Reset button, colour key and controls hint sit
- * on the viewer's edges and would read as "drawn" on a blank canvas. A
- * Playwright screenshot is the composited result -- see stage.spec.ts on why
- * reading the WebGL canvas back does not work.
+ * no overlay reaches: My MRI's view buttons, Reset button, colour key and
+ * controls hint sit on the viewer's edges and would read as "drawn" on a
+ * blank canvas. Its view buttons cover the top-left corner, so My MRI samples
+ * the left edge. A Playwright screenshot is the composited result -- see
+ * stage.spec.ts on why reading the WebGL canvas back does not work.
  */
-export async function centreDrawnFraction(target: Locator): Promise<number> {
+export async function centreDrawnFraction(
+  target: Locator,
+  { background = 'top-left' }: { background?: 'top-left' | 'left-edge' } = {},
+): Promise<number> {
   const { data, width, height } = PNG.sync.read(await target.screenshot())
-  const o = (24 * width + 24) * 4
+  const [sx, sy] = background === 'left-edge' ? [4, Math.round(height / 2)] : [24, 24]
+  const o = (sy * width + sx) * 4
   const [br, bg, bb] = [data[o]!, data[o + 1]!, data[o + 2]!]
   const [x0, x1, y0, y1] = [width / 4, (3 * width) / 4, height / 4, (3 * height) / 4].map(Math.round) as [number, number, number, number]
   let drawn = 0

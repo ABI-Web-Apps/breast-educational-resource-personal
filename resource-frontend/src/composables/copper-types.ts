@@ -155,8 +155,12 @@ export interface CopperControls {
  * up and type this `any` (types/types.ts's `nrrdSliceType`), which is
  * exactly why this narrower interface exists instead of using theirs. */
 export interface NrrdSlice {
+  /** Grid millimetres along the slice's axis: slice number `n` (from 0) is `n * RSARatio`. */
   index: number
+  /** The last slice number along this axis (`dimensions - 1`). */
   MaxIndex: number
+  /** The voxel spacing along this axis: millimetres per slice. */
+  RSARatio: number
   /** `RASDimensions - 1` along this slice's axis: the plane for `index` sits
    *  at `index - RSAMaxIndex / 2` in the world. */
   RSAMaxIndex: number

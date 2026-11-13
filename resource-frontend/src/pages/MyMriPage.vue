@@ -107,6 +107,7 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
           {{ MY_MRI_COPY.controlsLead }}
           <strong>{{ MY_MRI_COPY.controlsReset }}</strong> {{ MY_MRI_COPY.controlsTail }}
         </p>
+        <p>{{ MY_MRI_COPY.views }}</p>
         <p>{{ MY_MRI_COPY.reportNote }}</p>
       </div>
     </template>

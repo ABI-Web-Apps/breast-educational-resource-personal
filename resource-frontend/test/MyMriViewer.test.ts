@@ -10,6 +10,9 @@ const scene = {
   status: ref<'loading' | 'ready' | 'error'>('ready'),
   error: ref<string | null>(null),
   noMask: ref(false),
+  view: ref<'3d' | 'axial' | 'coronal' | 'sagittal'>('3d'),
+  slice: ref<{ current: number, total: number } | null>(null),
+  setView: vi.fn(),
   resetView: vi.fn(),
 }
 const useMyMriScene = vi.fn((_host: unknown, _sources: unknown) => scene)
@@ -31,6 +34,9 @@ describe('MyMriViewer', () => {
     scene.status.value = 'ready'
     scene.error.value = null
     scene.noMask.value = false
+    scene.view.value = '3d'
+    scene.slice.value = null
+    scene.setView.mockClear()
     scene.resetView.mockClear()
     useMyMriScene.mockClear()
   })
@@ -56,6 +62,47 @@ describe('MyMriViewer', () => {
 
   it('shows the controls hint', () => {
     expect(mountViewer().text()).toContain('drag · right-drag · scroll')
+  })
+
+  it('offers the 3D view and the three single views, the current one pressed', async () => {
+    scene.status.value = 'loading'
+    const wrapper = mountViewer()
+    const group = wrapper.get(`[role="group"][aria-label="${MY_MRI_COPY.viewerViewsLabel}"]`)
+    const buttons = group.findAll('button')
+    expect(buttons.map(b => b.text())).toEqual(['3D', 'Axial', 'Coronal', 'Sagittal'])
+    expect(buttons.map(b => b.attributes('aria-pressed'))).toEqual(['true', 'false', 'false', 'false'])
+    // Like Reset, they wait for the scene.
+    expect(buttons.every(b => b.attributes('disabled') !== undefined)).toBe(true)
+
+    scene.status.value = 'ready'
+    await nextTick()
+    await buttons[1]!.trigger('click')
+    expect(scene.setView).toHaveBeenCalledWith('axial')
+
+    scene.view.value = 'axial'
+    await nextTick()
+    expect(buttons.map(b => b.attributes('aria-pressed'))).toEqual(['false', 'true', 'false', 'false'])
+  })
+
+  it('keeps the views and Reset in one wrapping row, so a narrow stage cannot overlap them', () => {
+    const wrapper = mountViewer()
+    const group = wrapper.get(`[role="group"][aria-label="${MY_MRI_COPY.viewerViewsLabel}"]`)
+    const reset = wrapper.get(`button[aria-label="${MY_MRI_COPY.viewerResetLabel}"]`)
+    const row = group.element.parentElement!
+    expect(reset.element.parentElement).toBe(row)
+    expect(row.className).toContain('tw:flex-wrap')
+  })
+
+  it('shows the slice number and the scroll hint in a single view', async () => {
+    const wrapper = mountViewer()
+    expect(wrapper.text()).not.toContain('Slice')
+
+    scene.view.value = 'axial'
+    scene.slice.value = { current: 46, total: 104 }
+    await nextTick()
+    expect(wrapper.get('[aria-live="polite"]').text()).toBe('Slice 46 / 104')
+    expect(wrapper.text()).toContain('scroll: slices · Ctrl+scroll: zoom')
+    expect(wrapper.text()).not.toContain('drag · right-drag · scroll')
   })
 
   it('resets the view from the Reset button, which waits for the scene', async () => {

@@ -79,6 +79,7 @@ describe('MyMriPage', () => {
     const text = mountPage().get('.content-slot').text()
     expect(text).toContain("WHAT YOU'RE SEEING")
     expect(text).toContain('A dash (—) means')
+    expect(text).toContain('Axial, Coronal and Sagittal show one slice at a time')
   })
 
   it('omits the colour-matching paragraph while there are no findings', () => {

@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 import { centreDrawnFraction } from './helpers'
 
@@ -33,7 +34,7 @@ test.describe('My MRI', () => {
     const viewer = page.getByRole('img', { name: 'Your MRI scan in 3D' })
     await expect(viewer.locator('canvas')).toHaveCount(1, { timeout: 120_000 })
     await expect(page.getByRole('button', { name: /reset the 3d view/i })).toBeEnabled({ timeout: 120_000 })
-    await expect.poll(() => centreDrawnFraction(viewer), {
+    await expect.poll(() => centreDrawnFraction(viewer, { background: 'left-edge' }), {
       message: 'the 3D view is ready but drew nothing',
       timeout: 30_000,
     }).toBeGreaterThan(0.05)
@@ -53,6 +54,56 @@ test.describe('My MRI', () => {
       await expect(page.getByRole('link', { name: 'Open report' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Download' })).toBeVisible()
     }
+  })
+
+  // The trackball's own wheel listener is on the canvas: only a real browser
+  // shows whether a scroll moves the slice or the camera.
+  test('a single view scrolls through its slices; Ctrl+scroll zooms instead', async ({ page }) => {
+    await page.goto('/my-mri')
+    const viewer = page.getByRole('img', { name: 'Your MRI scan in 3D' })
+    await expect(page.getByRole('button', { name: /reset the 3d view/i })).toBeEnabled({ timeout: 120_000 })
+    const views = page.getByRole('group', { name: 'View' })
+    const readout = page.locator('[aria-live="polite"]')
+    await expect(readout).toHaveCount(0)
+
+    await views.getByRole('button', { name: 'Axial', exact: true }).click()
+    await expect(views.getByRole('button', { name: 'Axial', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    const sliceOf = async () => Number(/Slice (\d+) \/ \d+/.exec(await readout.innerText())![1])
+    const start = await sliceOf()
+    const box = (await viewer.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    for (let i = 0; i < 5; i++) await page.mouse.wheel(0, 100)
+    await expect.poll(sliceOf).toBe(start + 5)
+    expect(await centreDrawnFraction(viewer, { background: 'left-edge' }), 'the single view drew nothing')
+      .toBeGreaterThan(0.05)
+
+    // The slice stays put, so any change on the stage is the camera moving.
+    const before = await viewer.screenshot()
+    await page.keyboard.down('Control')
+    for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -100)
+    await page.keyboard.up('Control')
+    await expect.poll(async () => !(await viewer.screenshot()).equals(before), { message: 'Ctrl+scroll did not zoom' })
+      .toBe(true)
+    expect(await sliceOf()).toBe(start + 5)
+
+    await page.getByRole('button', { name: /reset the 3d view/i }).click()
+    await expect(views.getByRole('button', { name: '3D', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await expect(readout).toHaveCount(0)
+  })
+
+  // a11y.spec.ts runs without the dataset, so My MRI's own controls are scanned
+  // here, with a single view open: the pressed view button and the slice readout.
+  test('has no serious or critical axe violations with a single view open', async ({ page }) => {
+    await page.goto('/my-mri')
+    await expect(page.getByRole('button', { name: /reset the 3d view/i })).toBeEnabled({ timeout: 120_000 })
+    await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Coronal', exact: true }).click()
+    await expect(page.locator('[aria-live="polite"]')).toHaveText(/^Slice \d+ \/ \d+$/)
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
+      .analyze()
+    const blocking = results.violations.filter(v => v.impact === 'critical' || v.impact === 'serious')
+    expect(blocking.map(v => `${v.impact}/${v.id} on ${v.nodes.map(n => n.target.join(' ')).join(', ')}`)).toEqual([])
   })
 
   test('going to a case and back does not stack a second canvas', async ({ page }) => {

@@ -1,5 +1,5 @@
-import { AmbientLight, Box3, DirectionalLight, DoubleSide, MeshStandardMaterial, Vector3 } from 'three'
-import type { Material, Matrix4, Mesh, Object3D } from 'three'
+import { AmbientLight, Box3, DirectionalLight, DoubleSide, MathUtils, MeshStandardMaterial, Vector3 } from 'three'
+import type { Material, Matrix4, Mesh, Object3D, PerspectiveCamera } from 'three'
 import { onActivated, onDeactivated, onScopeDispose, ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import { MY_MRI_COPY } from '@/content/myMri'
@@ -26,10 +26,10 @@ import type { FindingSummary } from '@/myMri/useMyMriSession'
  * The patient's MRI as three orthogonal slice planes, with the Clinician Layer
  * mask over them as one coloured mesh per finding.
  *
- * This is the validator's ground-truth 3D view (`RightPanelCore.vue`'s scene and
- * NRRD callback, `useRightPanelModels.ts`'s mesh loading) cut down to what a
- * patient needs: no view switching, no brightness, no slice scrubbing. The
- * planes are placed once, through the marked area.
+ * This is the validator's ground-truth 3D view (`RightPanelCore.vue`'s scene,
+ * NRRD callback, view switching and wheel, `useRightPanelModels.ts`'s mesh
+ * loading) cut down to what a patient needs: no brightness, no layers. The
+ * planes open through the marked area, in the 3D view.
  *
  * Where it differs from the validator:
  *
@@ -37,6 +37,11 @@ import type { FindingSummary } from '@/myMri/useMyMriSession'
  *   window measured here from the loaded voxels. The validator frames a body
  *   box and applies a default window, both measured by its backend; this
  *   backend measures neither.
+ * - One click on a view both shows its plane and turns the camera to face it;
+ *   the validator keeps the camera on a single click and turns it on a double
+ *   click. A single view has no volume box around its plane.
+ * - Reset is the validator's nav-bar reset plus the opening slices: the 3D
+ *   view, the planes back through the marked area, the opening camera.
  * - The mask goes through `copperSceneOnDemond.loadGltf`; `loadPureGLB` exists
  *   only on `copperScene`. `loadGltf` recentres the group's `position`, bounds
  *   the dolly on the model and (unless `cameraPositionFlag` is set) frames the
@@ -45,18 +50,49 @@ import type { FindingSummary } from '@/myMri/useMyMriSession'
  * - Frames are drawn on demand, so every change that should show calls `draw`.
  */
 
+/** What the stage shows: the three planes together, or one of them face-on. */
+export type MyMriView = '3d' | 'axial' | 'coronal' | 'sagittal'
+
+/** Where a single view is, counted from 1 as the reader counts slices. */
+export interface SliceReadout {
+  current: number
+  total: number
+}
+
+type Axis = 'x' | 'y' | 'z'
+const AXES: readonly Axis[] = ['x', 'y', 'z']
+
+/** The plane each single view shows. The world is canonical LPS (see `patientFrame`). */
+const VIEW_AXIS: Record<Exclude<MyMriView, '3d'>, Axis> = { sagittal: 'x', coronal: 'y', axial: 'z' }
+
 /**
- * The validator's axial preset (`assets/nrrd_view_axial.json`), which its
- * combined 3D view opens on: the eye inferior, anterior up, so the patient is
- * seen the way the 2D axial view shows them. `fitView` keeps its direction and
- * up and replaces only the distance.
+ * The validator's presets (`assets/nrrd_view_*.json`). Each single view looks at
+ * its plane the way the 2D views show the patient: axial from inferior with
+ * anterior up, coronal from anterior and sagittal from the patient's left, both
+ * superior up. The 3D view opens on the axial preset. `fitView` keeps a preset's
+ * direction and up and replaces only the distance.
  */
-const VIEW_PRESET: CopperViewPoint = {
+const AXIAL_PRESET: CopperViewPoint = {
   farPlane: 1000,
   nearPlane: 0.01,
   eyePosition: [0, 0, -600],
   targetPosition: [0, 0, 0],
   upVector: [0, -1, 0],
+}
+/** The plane's extents that lie across and up the screen in each single view, from its preset. */
+const VIEW_SCREEN_AXES: Record<Exclude<MyMriView, '3d'>, [Axis, Axis]> = {
+  sagittal: ['y', 'z'],
+  coronal: ['x', 'z'],
+  axial: ['x', 'y'],
+}
+/** How much of the stage a single view's plane fills along its tighter side. */
+const PLANE_FILL = 0.9
+
+const VIEW_PRESETS: Record<MyMriView, CopperViewPoint> = {
+  '3d': AXIAL_PRESET,
+  'axial': AXIAL_PRESET,
+  'coronal': { farPlane: 1000, nearPlane: 0.01, eyePosition: [0, -500, 0], targetPosition: [0, 0, 0], upVector: [0, 0, 1] },
+  'sagittal': { farPlane: 1000, nearPlane: 0.01, eyePosition: [500, 0, 0], targetPosition: [0, 0, 0], upVector: [0, 0, 1] },
 }
 
 const MESH_OPACITY = 0.5
@@ -186,6 +222,11 @@ function centreSlicesOn(slices: Slices, centre: Vector3): void {
   }
 }
 
+/** The slice number (from 0) a plane is on. A plane centred on the marked area can sit between two. */
+function sliceNumber(slice: NrrdSlice): number {
+  return Math.min(slice.MaxIndex, Math.max(0, Math.round(slice.index / slice.RSARatio)))
+}
+
 /**
  * The display window the planes open on: the `low`th to `high`th percentile of
  * the volume's intensities, measured from a histogram over `[min, max]` of at
@@ -245,6 +286,17 @@ function boundsRadius(bounds: FitBounds): number {
 }
 
 /**
+ * How far back a camera facing a plane head-on sits for the plane to fill
+ * `PLANE_FILL` of the stage: whichever of its width against the horizontal
+ * field of view and its height against the vertical one needs more room.
+ */
+function faceOnDistance(across: number, up: number, fovDegrees: number, aspect: number): number {
+  const vHalf = MathUtils.degToRad(fovDegrees) / 2
+  const hHalf = Math.atan(Math.tan(vHalf) * aspect)
+  return Math.max(across / 2 / Math.tan(hHalf), up / 2 / Math.tan(vHalf)) / PLANE_FILL
+}
+
+/**
  * `host` is the element the renderer's canvas goes in. `sources` is read once:
  * a different scan is a different viewer (the page keys it by URL).
  */
@@ -253,6 +305,9 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
   const error = ref<string | null>(null)
   /** The scan has no marked areas: the planes show alone, and that is not an error. */
   const noMask = ref(false)
+  const view = ref<MyMriView>('3d')
+  /** The single view's slice; null in the 3D view, where no one slice is "the" slice. */
+  const slice = ref<SliceReadout | null>(null)
 
   /** The renderer's scene map and the shared budget both key on this. */
   const sceneName = `my-mri:${sources.mri}`
@@ -270,6 +325,10 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
   let posed = false
   let timer: ReturnType<typeof setTimeout> | undefined
   let inputHost: HTMLElement | undefined
+  let planes: Record<Axis, Mesh> | undefined
+  let slices: Slices | undefined
+  /** Where each plane opened, which Reset puts it back to. */
+  const openingIndex: Partial<Record<Axis, number>> = {}
 
   // Registered before the stage's own disposal, so the scene's GPU resources are
   // freed while the renderer that owns them still exists.
@@ -336,29 +395,122 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     const radius = boundsRadius(bounds)
     scene.controls.minDistance = radius * MIN_DISTANCE_FACTOR
     scene.controls.maxDistance = radius * MAX_DISTANCE_FACTOR
-    scene.camera.far = Math.max(VIEW_PRESET.farPlane, radius * (MAX_DISTANCE_FACTOR + 1))
+    scene.camera.far = Math.max(VIEW_PRESETS[view.value].farPlane, radius * (MAX_DISTANCE_FACTOR + 1))
     scene.camera.updateProjectionMatrix()
   }
 
   /**
-   * The opening camera, which Reset restores: the preset's direction and up,
-   * at the distance that fits the planes into the stage's current aspect.
-   * `setCameraPose` writes the up vector, which `fitView` does not touch.
+   * The current view's camera: its preset's direction and up, at the distance
+   * that fits the planes into the stage's current aspect. `setCameraPose`
+   * writes the up vector, which `fitView` does not touch. A single view then
+   * moves in on its own plane.
    */
   function frame() {
     if (!scene) return
     const { camera } = scene
-    camera.near = VIEW_PRESET.nearPlane
-    setCameraPose(scene, viewPointToPose(VIEW_PRESET))
+    const preset = VIEW_PRESETS[view.value]
+    camera.near = preset.nearPlane
+    setCameraPose(scene, viewPointToPose(preset))
     if (bounds) {
-      fitView(scene, VIEW_PRESET, stage.aspect(), bounds)
+      fitView(scene, preset, stage.aspect(), bounds)
+      if (view.value !== '3d') faceOn(view.value)
       limitDolly()
     }
     else {
-      camera.far = VIEW_PRESET.farPlane
+      camera.far = preset.farPlane
       camera.updateProjectionMatrix()
     }
     posed = false
+  }
+
+  /**
+   * Centres the camera on a single view's plane, as close as fills the stage
+   * with it. `fitView` fits a bounding sphere, which suits the 3D view's
+   * any-angle box but leaves a plane seen head-on small; this keeps the
+   * direction `fitView` set and replaces the distance.
+   */
+  function faceOn(single: Exclude<MyMriView, '3d'>) {
+    const plane = planes?.[VIEW_AXIS[single]]
+    if (!scene || !plane) return
+    const box = new Box3().setFromObject(plane)
+    if (box.isEmpty()) return
+    const size = box.getSize(new Vector3())
+    const centre = box.getCenter(new Vector3())
+    const camera = scene.camera as unknown as PerspectiveCamera
+    const target = scene.controls.target as unknown as Vector3
+    const direction = camera.position.clone().sub(target).normalize()
+    const [across, up] = VIEW_SCREEN_AXES[single]
+    const distance = faceOnDistance(size[across], size[up], camera.fov, stage.aspect())
+    camera.position.copy(centre).addScaledVector(direction, distance)
+    camera.lookAt(centre)
+    target.copy(centre)
+  }
+
+  function activeSlice(): NrrdSlice | undefined {
+    return view.value === '3d' ? undefined : slices?.[VIEW_AXIS[view.value]]
+  }
+
+  function readSlice() {
+    const active = activeSlice()
+    slice.value = active ? { current: sliceNumber(active) + 1, total: active.MaxIndex + 1 } : null
+  }
+
+  /** Shows the view's plane, or all three for the 3D view, and leaves the camera alone. */
+  function showView(next: MyMriView) {
+    if (!planes) return
+    view.value = next
+    for (const axis of AXES) planes[axis].visible = next === '3d' || VIEW_AXIS[next] === axis
+    readSlice()
+  }
+
+  function rememberOpeningSlices() {
+    for (const axis of AXES) {
+      const at = slices?.[axis]
+      if (at) openingIndex[axis] = at.index
+    }
+  }
+
+  function restoreOpeningSlices() {
+    for (const axis of AXES) {
+      const at = slices?.[axis]
+      const index = openingIndex[axis]
+      if (!at || index === undefined || at.index === index) continue
+      at.index = index
+      at.repaint.call(at)
+    }
+  }
+
+  /** One slice on in the single view, clamped to the scan. */
+  function stepSlice(step: number) {
+    const active = activeSlice()
+    if (!active) return
+    active.index = Math.min(active.MaxIndex, Math.max(0, sliceNumber(active) + step)) * active.RSARatio
+    active.repaint.call(active)
+    readSlice()
+    draw()
+  }
+
+  /**
+   * In a single view the wheel moves through the slices (the PACS convention,
+   * the validator's `onPanelWheel`); with Ctrl or ⌘ held, and always in the 3D
+   * view, it falls through to the trackball's zoom. Registered on the host in
+   * the capture phase so it runs before the trackball's own listener on the
+   * canvas inside it; stopping the event there also keeps a slice step from
+   * counting as a camera gesture (`markPosed`).
+   */
+  function onWheel(event: WheelEvent) {
+    if (disposed || view.value === '3d' || event.ctrlKey || event.metaKey || event.deltaY === 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    stepSlice(event.deltaY > 0 ? 1 : -1)
+  }
+
+  /** Shows a view and turns the camera to face it. Waits for the scan, mask included. */
+  function setView(next: MyMriView) {
+    if (status.value !== 'ready' || !planes) return
+    showView(next)
+    frame()
+    draw()
   }
 
   function start() {
@@ -408,25 +560,29 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     )
   }
 
-  function onVolume(target: CopperScene, volume: NrrdVolume, meshes: NrrdMeshes, slices: Slices) {
-    const planes = [meshes.x, meshes.y, meshes.z] as unknown as Mesh[]
+  function onVolume(target: CopperScene, volume: NrrdVolume, meshes: NrrdMeshes, landed: Slices) {
+    const byAxis = { x: meshes.x, y: meshes.y, z: meshes.z } as unknown as Record<Axis, Mesh>
+    const all = AXES.map(axis => byAxis[axis])
     if (disposed || failed) {
       // Never added to a scene, so nothing else will free them.
-      for (const plane of planes) disposeObject3D(plane)
+      for (const plane of all) disposeObject3D(plane)
       return
     }
     clearTimer()
 
-    showSliceGreysAsIs(planes)
-    for (const plane of planes) {
+    showSliceGreysAsIs(all)
+    for (const plane of all) {
       plane.renderOrder = PLANE_RENDER_ORDER
       target.addObject(plane)
     }
+    planes = byAxis
+    slices = landed
+    rememberOpeningSlices()
 
     // The field of view is the box of the three planes, measured from the
     // meshes so it carries the volume's own offset.
     const field = new Box3()
-    for (const plane of planes) field.expandByObject(plane)
+    for (const plane of all) field.expandByObject(plane)
     if (!field.isEmpty()) {
       const size = field.getSize(new Vector3())
       const centre = field.getCenter(new Vector3())
@@ -460,11 +616,12 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     inputHost = host.value ?? undefined
     inputHost?.addEventListener('pointerdown', markPosed)
     inputHost?.addEventListener('wheel', markPosed, { passive: true })
+    inputHost?.addEventListener('wheel', onWheel, { capture: true, passive: false })
 
-    loadMask(target, worldFromLps(volume.orientation.geometry, volume.RASDimensions), slices)
+    loadMask(target, worldFromLps(volume.orientation.geometry, volume.RASDimensions), landed)
   }
 
-  function loadMask(target: CopperScene, toWorld: Matrix4, slices: Slices) {
+  function loadMask(target: CopperScene, toWorld: Matrix4, landed: Slices) {
     arm(GLB_LOAD_TIMEOUT_MS, MY_MRI_COPY.viewerErrors.mask)
     target.loadGltf(
       sources.mask,
@@ -485,7 +642,10 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
         placeInPatientFrame(group, toWorld)
         colourMask(group, sources.findings)
         const marked = new Box3().setFromObject(group)
-        if (!marked.isEmpty()) centreSlicesOn(slices, marked.getCenter(new Vector3()))
+        if (!marked.isEmpty()) {
+          centreSlicesOn(landed, marked.getCenter(new Vector3()))
+          rememberOpeningSlices()
+        }
         status.value = 'ready'
         draw()
       },
@@ -506,9 +666,11 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     draw()
   }
 
-  /** Back to the opening camera. */
+  /** Back to how the viewer opened: the 3D view, the opening slices, the opening camera. */
   function resetView() {
     if (!scene) return
+    restoreOpeningSlices()
+    showView('3d')
     frame()
     draw()
   }
@@ -520,6 +682,7 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     controller.abort()
     inputHost?.removeEventListener('pointerdown', markPosed)
     inputHost?.removeEventListener('wheel', markPosed)
+    inputHost?.removeEventListener('wheel', onWheel, { capture: true })
     if (registered) {
       getSceneBudget().unpin(sceneName)
       getSceneBudget().release(sceneName)
@@ -536,7 +699,9 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
       scene.controls.dispose()
     }
     scene = undefined
+    planes = undefined
+    slices = undefined
   }
 
-  return { status, error, noMask, resetView }
+  return { status, error, noMask, view, slice, setView, resetView }
 }

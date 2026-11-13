@@ -3,8 +3,8 @@
 An interactive breast education resource from the Auckland Bioengineering
 Institute: anatomy, mammogram and MRI side by side for the four density
 grades, benign findings and cancers, with a guided tour. A **My MRI** page
-shows a patient's own scan in 3D, with the marked areas, beside a findings
-report (PDF) built from a dataset held in MinIO.
+shows a patient's own scan in 3D or one slice at a time, with the marked
+areas, beside a findings report (PDF) built from a dataset held in MinIO.
 
 It runs three ways from one source tree:
 

@@ -173,11 +173,15 @@ function gltfCall() {
   return scene.loadGltf.mock.calls[0] as unknown as [string, (group: Group) => void, any]
 }
 
-/** copper3d's slice objects: `index` is in grid millimetres, `RSAMaxIndex` is `RASDimensions - 1`. */
+/**
+ * copper3d's slice objects: `index` is in grid millimetres (slice number times
+ * `RSARatio`, the spacing), `RSAMaxIndex` is `RASDimensions - 1`.
+ */
 function makeSlices() {
   const slice = (axis: 0 | 1 | 2) => ({
     index: Math.floor(GEOMETRY.dims[axis] / 2) * Math.hypot(...GEOMETRY.directions[axis]),
     RSAMaxIndex: RAS[axis]! - 1,
+    RSARatio: Math.hypot(...GEOMETRY.directions[axis]),
     MaxIndex: GEOMETRY.dims[axis] - 1,
     volume: { spacing: GEOMETRY.directions.map(d => Math.hypot(...d)) },
     repaint: vi.fn(),
@@ -499,6 +503,198 @@ describe('useMyMriScene', () => {
     expect(scene.scene.children).not.toContain(meshes.x)
     expect(scene.loadGltf).not.toHaveBeenCalled()
     expect(budget.register).not.toHaveBeenCalled()
+  })
+
+  describe('slice views', () => {
+    async function mountReady() {
+      const mountedScene = await mountScene()
+      const landed = landVolume()
+      landMask()
+      await nextTick()
+      // The trackball listens for the wheel on the renderer's canvas, inside the host.
+      const canvas = document.createElement('canvas')
+      mountedScene.wrapper.element.appendChild(canvas)
+      const zoom = vi.fn()
+      canvas.addEventListener('wheel', zoom)
+      return { ...mountedScene, ...landed, canvas, zoom }
+    }
+
+    function wheel(target: EventTarget, { ctrlKey = false, metaKey = false, ...init }: WheelEventInit = {}) {
+      const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 100, ...init })
+      // The test DOM's WheelEvent drops the modifier keys from its init.
+      Object.defineProperties(event, { ctrlKey: { value: ctrlKey }, metaKey: { value: metaKey } })
+      target.dispatchEvent(event)
+      return event
+    }
+
+    const visible = (meshes: ReturnType<typeof makeMeshes>) => [meshes.x.visible, meshes.y.visible, meshes.z.visible]
+
+    it('opens on the 3D view: all three planes, no slice number', async () => {
+      const { api, meshes } = await mountReady()
+      expect(api.view.value).toBe('3d')
+      expect(api.slice.value).toBeNull()
+      expect(visible(meshes)).toEqual([true, true, true])
+    })
+
+    it('shows one plane face-on in a single view, with its slice number', async () => {
+      const { api, meshes, slices } = await mountReady()
+
+      api.setView('sagittal')
+      expect(api.view.value).toBe('sagittal')
+      expect(visible(meshes)).toEqual([true, false, false])
+      // From the patient's left, superior up (the validator's sagittal preset).
+      expect(scene.camera.position.x).toBeGreaterThan(scene.controls.target.x)
+      expect(scene.camera.up.z).toBeCloseTo(1, 9)
+      expect(api.slice.value).toEqual({
+        current: Math.round(slices.x.index / slices.x.RSARatio) + 1,
+        total: 384,
+      })
+
+      api.setView('coronal')
+      expect(visible(meshes)).toEqual([false, true, false])
+      // From anterior.
+      expect(scene.camera.position.y).toBeLessThan(scene.controls.target.y)
+      expect(api.slice.value?.total).toBe(384)
+
+      api.setView('axial')
+      expect(visible(meshes)).toEqual([false, false, true])
+      // From inferior, anterior up.
+      expect(scene.camera.position.z).toBeLessThan(scene.controls.target.z)
+      expect(scene.camera.up.y).toBeCloseTo(-1, 9)
+      expect(api.slice.value?.total).toBe(104)
+
+      api.setView('3d')
+      expect(visible(meshes)).toEqual([true, true, true])
+      expect(api.slice.value).toBeNull()
+    })
+
+    it('fills the stage with the single view\'s plane, not the whole volume', async () => {
+      const { api } = await mountReady()
+      const distance = () => scene.camera.position.distanceTo(scene.controls.target)
+      const opening = distance()
+      // The stage has no size here, so its aspect is 1 and the plane's longer
+      // side meets the field of view: 90% of it, face-on. To 3 places: the plane
+      // geometry is float32.
+      const fit = (side: number) => side / 2 / Math.tan(Math.PI / 8) / 0.9
+
+      api.setView('sagittal') // across: y, up: z
+      expect(distance()).toBeCloseTo(fit(RAS[1]!), 3)
+      expect(distance()).toBeLessThan(opening)
+      api.setView('axial') // across: x, up: y
+      expect(distance()).toBeCloseTo(fit(Math.max(RAS[0]!, RAS[1]!)), 3)
+      api.setView('3d')
+      expect(distance()).toBeCloseTo(opening, 6)
+    })
+
+    it('scrolls through the slices of a single view instead of zooming', async () => {
+      const { api, slices, canvas, zoom } = await mountReady()
+      api.setView('axial')
+      const start = api.slice.value!.current
+      const eye = scene.camera.position.clone()
+      slices.z.repaint.mockClear()
+      renderer.render.mockClear()
+
+      const down = wheel(canvas, { deltaY: 100 })
+      expect(down.defaultPrevented).toBe(true)
+      expect(zoom).not.toHaveBeenCalled()
+      expect(api.slice.value!.current).toBe(start + 1)
+      // Slice number `n` (from 0) sits at `n * RSARatio`; the readout counts from 1.
+      expect(slices.z.index).toBeCloseTo(start * slices.z.RSARatio, 9)
+      expect(slices.z.repaint.mock.contexts.at(-1)).toBe(slices.z)
+      expect(renderer.render).toHaveBeenCalled()
+      expect(scene.camera.position.distanceTo(eye)).toBe(0)
+
+      wheel(canvas, { deltaY: -3 })
+      expect(api.slice.value!.current).toBe(start)
+
+      // A sideways scroll moves nothing.
+      wheel(canvas, { deltaY: 0, deltaX: 100 })
+      expect(api.slice.value!.current).toBe(start)
+    })
+
+    it('stops at the first and the last slice', async () => {
+      const { api, slices, canvas } = await mountReady()
+      api.setView('axial')
+      for (let i = 0; i < 200; i++) wheel(canvas, { deltaY: 100 })
+      expect(api.slice.value).toEqual({ current: 104, total: 104 })
+      expect(slices.z.index).toBeCloseTo(103 * 1.5, 9)
+      for (let i = 0; i < 200; i++) wheel(canvas, { deltaY: -100 })
+      expect(api.slice.value).toEqual({ current: 1, total: 104 })
+      expect(slices.z.index).toBe(0)
+    })
+
+    it('leaves the wheel to the zoom with Ctrl or ⌘ held, and in the 3D view', async () => {
+      const { api, slices, canvas, zoom } = await mountReady()
+      const index = slices.z.index
+
+      wheel(canvas)
+      expect(zoom).toHaveBeenCalledTimes(1)
+
+      api.setView('axial')
+      const start = api.slice.value!.current
+      expect(wheel(canvas, { ctrlKey: true }).defaultPrevented).toBe(false)
+      wheel(canvas, { metaKey: true })
+      expect(zoom).toHaveBeenCalledTimes(3)
+      expect(api.slice.value!.current).toBe(start)
+      expect(slices.z.index).toBe(index)
+    })
+
+    it('keeps a scrolled slice across view changes', async () => {
+      const { api, canvas } = await mountReady()
+      api.setView('axial')
+      wheel(canvas)
+      wheel(canvas)
+      const scrolled = api.slice.value!.current
+      api.setView('3d')
+      api.setView('axial')
+      expect(api.slice.value!.current).toBe(scrolled)
+    })
+
+    it('Reset goes back to the 3D view, the opening slices and the opening camera', async () => {
+      const { api, meshes, slices, canvas } = await mountReady()
+      const opening = [slices.x.index, slices.y.index, slices.z.index]
+      const eye = scene.camera.position.clone()
+
+      api.setView('sagittal')
+      wheel(canvas)
+      api.setView('axial')
+      wheel(canvas)
+      api.resetView()
+
+      expect(api.view.value).toBe('3d')
+      expect(api.slice.value).toBeNull()
+      expect(visible(meshes)).toEqual([true, true, true])
+      expect([slices.x.index, slices.y.index, slices.z.index]).toEqual(opening)
+      expect(scene.camera.position.distanceTo(eye)).toBeCloseTo(0, 9)
+    })
+
+    it('ignores a view change before the scan is ready', async () => {
+      const { api } = await mountScene()
+      api.setView('axial')
+      expect(api.view.value).toBe('3d')
+      const { meshes } = landVolume()
+      api.setView('axial') // the mask is still loading
+      expect(api.view.value).toBe('3d')
+      expect(visible(meshes)).toEqual([true, true, true])
+    })
+
+    it('offers the views on a scan with no marked areas', async () => {
+      const { api } = await mountScene()
+      const { meshes } = landVolume()
+      gltfCall()[2].onError(httpError(404, { detail: { code: 'no_mask', summary: 'Cohort sub-1 has no mask.' } }))
+      await flushPromises()
+      api.setView('coronal')
+      expect(visible(meshes)).toEqual([false, true, false])
+    })
+
+    it('stops listening for the wheel on unmount', async () => {
+      const { wrapper, api, slices, canvas } = await mountReady()
+      api.setView('axial')
+      const index = slices.z.index
+      wrapper.unmount()
+      wheel(canvas)
+      expect(slices.z.index).toBe(index)
+    })
   })
 
   it('keeps one scene across a KeepAlive round trip and paints nothing while hidden', async () => {

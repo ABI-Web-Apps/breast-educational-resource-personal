@@ -7,7 +7,8 @@ import type { FindingSummary } from '@/myMri/useMyMriSession'
 
 /**
  * The 3D column: the MRI's three planes with the marked areas over them, a
- * colour key, a controls hint and Reset.
+ * colour key, a controls hint and Reset, and the views: 3D, or one plane
+ * face-on with its slice number, the wheel moving through its slices.
  *
  * A load failure shows over the canvas, never as a blank stage, with a Try
  * again of its own: it emits `retry`, and the page rebuilds this viewer alone.
@@ -22,7 +23,7 @@ defineEmits<{ retry: [] }>()
 
 const host = ref<HTMLElement | null>(null)
 // Read once: a different scan is a different viewer (the page keys it by URL).
-const { status, error, noMask, resetView } = useMyMriScene(host, {
+const { status, error, noMask, view, slice, setView, resetView } = useMyMriScene(host, {
   mri: props.mri,
   mask: props.mask,
   findings: props.findings,
@@ -60,19 +61,45 @@ const { status, error, noMask, resetView } = useMyMriScene(host, {
         </div>
       </div>
 
-      <button
-        type="button"
-        class="tw:pane tw:absolute tw:top-3 tw:right-3 tw:flex tw:min-h-11 tw:items-center tw:gap-1.5 tw:rounded-ctl tw:px-3
-               tw:text-body-sm tw:text-text tw:disabled:opacity-50"
-        :aria-label="MY_MRI_COPY.viewerResetLabel"
-        :disabled="status !== 'ready'"
-        @click="resetView()"
-      >
-        <svg viewBox="0 0 24 24" class="tw:size-4" aria-hidden="true">
-          <path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7" />
-        </svg>
-        <span>{{ MY_MRI_COPY.viewerReset }}</span>
-      </button>
+      <!-- One row that wraps, so on a narrow stage Reset drops below the views
+           instead of covering them. Only the controls themselves take input. -->
+      <div class="tw:pointer-events-none tw:absolute tw:inset-x-3 tw:top-3 tw:flex tw:flex-wrap tw:items-start tw:gap-2">
+        <div
+          role="group"
+          :aria-label="MY_MRI_COPY.viewerViewsLabel"
+          class="tw:pane tw:pointer-events-auto tw:flex tw:min-h-11 tw:items-center tw:gap-1 tw:rounded-ctl tw:p-1"
+        >
+          <button
+            v-for="option in MY_MRI_COPY.viewerViews"
+            :key="option.view"
+            type="button"
+            class="tw:min-h-9 tw:rounded-chip tw:px-2 tw:text-body-sm tw:disabled:opacity-50"
+            :class="view === option.view
+              ? 'tw:bg-brand-subtle tw:font-bold tw:text-brand-hover'
+              : 'tw:text-text-muted tw:hover:bg-surface-sunken'"
+            :aria-pressed="view === option.view"
+            :title="option.title"
+            :disabled="status !== 'ready'"
+            @click="setView(option.view)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="tw:pane tw:pointer-events-auto tw:ml-auto tw:flex tw:min-h-11 tw:items-center tw:gap-1.5 tw:rounded-ctl tw:px-3
+                 tw:text-body-sm tw:text-text tw:disabled:opacity-50"
+          :aria-label="MY_MRI_COPY.viewerResetLabel"
+          :disabled="status !== 'ready'"
+          @click="resetView()"
+        >
+          <svg viewBox="0 0 24 24" class="tw:size-4" aria-hidden="true">
+            <path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7" />
+          </svg>
+          <span>{{ MY_MRI_COPY.viewerReset }}</span>
+        </button>
+      </div>
 
       <!-- One row, so a long note and the hint share the width instead of
            overlapping. Not interactive: drags over it still reach the canvas. -->
@@ -98,9 +125,18 @@ const { status, error, noMask, resetView } = useMyMriScene(host, {
             {{ finding.label }}
           </li>
         </ul>
-        <p class="tw:pane tw:ml-auto tw:shrink-0 tw:rounded-card tw:px-3 tw:py-1 tw:text-caption tw:text-text-muted">
-          {{ MY_MRI_COPY.viewerHint }}
-        </p>
+        <div class="tw:ml-auto tw:flex tw:shrink-0 tw:flex-col tw:items-end tw:gap-1">
+          <p
+            v-if="slice"
+            aria-live="polite"
+            class="tw:pane tw:rounded-card tw:px-3 tw:py-1 tw:text-body-sm tw:font-bold tw:text-text tw:tabular-nums"
+          >
+            {{ MY_MRI_COPY.viewerSlice(slice.current, slice.total) }}
+          </p>
+          <p class="tw:pane tw:rounded-card tw:px-3 tw:py-1 tw:text-caption tw:text-text-muted">
+            {{ view === '3d' ? MY_MRI_COPY.viewerHint : MY_MRI_COPY.viewerSliceHint }}
+          </p>
+        </div>
       </div>
     </template>
   </div>

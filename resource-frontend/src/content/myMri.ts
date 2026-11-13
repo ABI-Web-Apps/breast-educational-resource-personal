@@ -31,6 +31,15 @@ export const MY_MRI_COPY = {
   viewerHeading: '3D view',
   viewerLabel: 'Your MRI scan in 3D',
   viewerHint: 'drag · right-drag · scroll',
+  viewerViewsLabel: 'View',
+  viewerViews: [
+    { view: '3d', label: '3D', title: 'All three slices together' },
+    { view: 'axial', label: 'Axial', title: 'One slice at a time, across your body' },
+    { view: 'coronal', label: 'Coronal', title: 'One slice at a time, from the front' },
+    { view: 'sagittal', label: 'Sagittal', title: 'One slice at a time, from the side' },
+  ],
+  viewerSlice: (current: number, total: number) => `Slice ${current} / ${total}`,
+  viewerSliceHint: 'scroll: slices · Ctrl+scroll: zoom',
   viewerReset: 'Reset',
   viewerResetLabel: 'Reset the 3D view',
   viewerLegendLabel: 'Colour key',
@@ -55,5 +64,6 @@ export const MY_MRI_COPY = {
   controlsLead: 'Drag to turn the view, right-drag to move it, and scroll to zoom.',
   controlsReset: 'Reset',
   controlsTail: 'puts it back.',
+  views: 'Axial, Coronal and Sagittal show one slice at a time: across your body, from the front and from the side. Scroll to move through the slices, and hold Ctrl while you scroll to zoom.',
   reportNote: 'Your report is beside the 3D view. A dash (—) means that item has not been recorded. If anything is unclear, ask your clinician.',
 } as const
