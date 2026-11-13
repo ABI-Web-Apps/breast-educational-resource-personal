@@ -129,6 +129,9 @@ export default defineConfig(({ command }) => {
     server: {
       host: '0.0.0.0',
       port: 3158,
+      // `yarn test:artefacts` rebuilds both outputs while `yarn dev` may be
+      // running; watching them made the dev server crash on EBUSY on Windows.
+      watch: { ignored: ['**/build/**', '**/dist/**'] },
     },
 
     // `vite preview` serves the production build, which asks for `/api` on
