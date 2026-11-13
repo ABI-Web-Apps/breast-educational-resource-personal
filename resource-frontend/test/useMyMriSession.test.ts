@@ -5,6 +5,20 @@ import { useMyMriSession } from '../src/myMri/useMyMriSession'
 
 vi.mock('../src/runtime/env', () => ({ getApiBaseUrl: () => 'http://api.test/api' }))
 
+/** Replaces the bundled config's cohorts for one test; null keeps them. */
+const cohortsOverride = vi.hoisted(() => ({ value: null as string[] | null }))
+vi.mock('../src/myMri/config', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/myMri/config')>()
+  return {
+    ...real,
+    getToolConfig: () => {
+      const config = real.getToolConfig()
+      if (cohortsOverride.value === null) return config
+      return { ...config, assay_info: { ...config.assay_info, cohorts: cohortsOverride.value } }
+    },
+  }
+})
+
 const enc = new TextEncoder()
 const toolConfigOk = () => new Response(new ReadableStream<Uint8Array>({
   start(c) {
@@ -41,7 +55,10 @@ function route(handlers: Record<'tool-config' | 'findings', (() => Response)[]>)
   return calls
 }
 
-afterEach(() => { vi.unstubAllGlobals() })
+afterEach(() => {
+  vi.unstubAllGlobals()
+  cohortsOverride.value = null
+})
 
 describe('useMyMriSession', () => {
   it('loads findings after tool-config', async () => {
@@ -84,6 +101,16 @@ describe('useMyMriSession', () => {
     expect(calls).toEqual(['tool-config', 'findings', 'tool-config', 'findings'])
     expect(session.status.value).toBe('error')
     expect(session.error.value!.code).toBe('assay_not_loaded')
+  })
+
+  it('fails with a summary of its own when the config names no patient', async () => {
+    cohortsOverride.value = []
+    const calls = route({ 'tool-config': [toolConfigOk], findings: [() => json(200, record)] })
+    const { session } = setup()
+    await flushPromises()
+    expect(session.status.value).toBe('error')
+    expect(session.error.value).toMatchObject({ summary: 'No patient is configured for My MRI.', code: 'no_cohort' })
+    expect(calls).toEqual([])
   })
 
   it('treats a missing findings record as no findings', async () => {

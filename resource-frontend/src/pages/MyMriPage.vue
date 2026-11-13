@@ -9,6 +9,7 @@ import { MY_MRI_COPY, colourSentence } from '@/content/myMri'
 import { useDocumentTitle } from '@/navigation/head'
 import { providePageRoute } from '@/navigation/router'
 import type { PageRoute } from '@/navigation/routes'
+import { fetchJson } from '@/myMri/api'
 import { useMyMriSession } from '@/myMri/useMyMriSession'
 
 const props = defineProps<{ route: PageRoute }>()
@@ -28,6 +29,24 @@ const sentence = computed(() => colourSentence(findings.value))
  * stays as it is. Session failures keep the column's Try again (`reload`).
  */
 const viewerAttempt = ref(0)
+
+/**
+ * The scan and the mask are fetched by copper3d, outside `withReload`, so a
+ * backend that restarted (and so forgot the assay) would answer every rebuilt
+ * viewer with 409. One findings request through `withReload` first re-posts
+ * the config if needed. Its answer is not used: `no_findings` already proves
+ * the assay is loaded, and any other failure is the rebuilt viewer's to show.
+ */
+async function retryViewer(): Promise<void> {
+  const findingsUrl = urls.value?.findings
+  if (findingsUrl) {
+    try {
+      await withReload(() => fetchJson(findingsUrl))
+    }
+    catch { /* see above */ }
+  }
+  viewerAttempt.value++
+}
 
 useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
 </script>
@@ -55,7 +74,7 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
               :mri="urls.mri"
               :mask="urls.mask"
               :findings="findings"
-              @retry="viewerAttempt++"
+              @retry="retryViewer()"
             />
           </MyMriColumnState>
         </section>

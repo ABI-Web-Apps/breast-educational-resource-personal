@@ -69,10 +69,23 @@ describe('fetchJson', () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(409, { detail: { code: 'assay_not_loaded', summary: 'Reload' } })))
     await expect(fetchJson('http://x')).rejects.toMatchObject({ code: 'assay_not_loaded', summary: 'Reload' })
   })
-  it('handles a non-JSON error body', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>', { status: 502 })))
+  it('treats a proxy page in place of the backend (502, 503, 504) as the server being unreachable', async () => {
+    for (const status of [502, 503, 504]) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('<html>', { status })))
+      await expect(fetchJson('http://x')).rejects.toMatchObject({
+        summary: 'The server could not be reached.', detail: `HTTP ${status}`,
+      })
+    }
+  })
+  it('says the server answered with an error when its body is not one of ours', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Internal Server Error', { status: 500 })))
     await expect(fetchJson('http://x')).rejects.toMatchObject({
-      summary: 'The server could not be reached.', detail: 'HTTP 502',
+      summary: 'The server returned an error (HTTP 500).', detail: 'HTTP 500',
+    })
+    // FastAPI's own validation error: `detail` is a list, not our {code, summary}.
+    vi.stubGlobal('fetch', vi.fn(async () => json(422, { detail: [{ loc: ['query', 'tz'], msg: 'bad', type: 'x' }] })))
+    await expect(fetchJson('http://x')).rejects.toMatchObject({
+      summary: 'The server returned an error (HTTP 422).', detail: 'HTTP 422',
     })
   })
 })

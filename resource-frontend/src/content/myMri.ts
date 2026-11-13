@@ -1,17 +1,24 @@
+import { NEUTRAL_COLOR, findingColour } from '@/myMri/findingColour'
+
 /** Names for the finding colours the report and viewer use. */
 const COLOUR_NAMES: Record<string, string> = {
   '#ff7043': 'orange',
   '#42a5f5': 'blue',
+  [NEUTRAL_COLOR]: 'grey',
 }
 
 const FALLBACK_COLOUR = 'this colour'
 
-export interface FindingColour { label: string, color: string }
+export interface FindingColour { label: string, color: string | null }
 
-/** "orange is Finding 1, blue is Finding 2", built from the findings' own colours. */
+/**
+ * "orange is Finding 1, blue is Finding 2", built from the findings' own
+ * colours. Each is named as it is drawn, so a finding with no usable colour
+ * is the neutral grey here as well as in the legend and the 3D view.
+ */
 export function colourSentence(findings: FindingColour[]): string {
   return findings
-    .map(f => `${COLOUR_NAMES[f.color.toLowerCase()] ?? FALLBACK_COLOUR} is ${f.label}`)
+    .map(f => `${COLOUR_NAMES[findingColour(f.color).toLowerCase()] ?? FALLBACK_COLOUR} is ${f.label}`)
     .join(', ')
 }
 

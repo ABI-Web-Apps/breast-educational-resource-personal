@@ -2,17 +2,21 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { fetchJson, isAbort, patientUrls, postToolConfig } from '@/myMri/api'
 import type { MyMriError } from '@/myMri/api'
 import { getToolConfig } from '@/myMri/config'
+import { findingColour } from '@/myMri/findingColour'
 
+/** One finding as the page shows it. `color` is always `#rrggbb`: the
+ *  finding's own, or the neutral grey it is drawn in without one. */
 export interface FindingSummary { label: string, channel: number, color: string }
 
 interface FindingsRecord {
-  findings?: { label: string, lesion: { channel: number, color: string } }[]
+  // `lesion.color` is optional in the schema and arrives as null when unset.
+  findings?: { label: string, lesion: { channel: number, color?: string | null } }[]
 }
 
 function mapFindings(record: FindingsRecord | null): FindingSummary[] {
   try {
     return (record?.findings ?? []).map(f => ({
-      label: f.label, channel: f.lesion.channel, color: f.lesion.color,
+      label: f.label, channel: f.lesion.channel, color: findingColour(f.lesion.color),
     }))
   } catch {
     const err: MyMriError = {
@@ -21,6 +25,15 @@ function mapFindings(record: FindingsRecord | null): FindingSummary[] {
       code: 'invalid_findings',
     }
     throw err
+  }
+}
+
+/** The page shows `assay_info.cohorts[0]`; a config without one has no patient to load. */
+function noPatient(): MyMriError {
+  return {
+    summary: 'No patient is configured for My MRI.',
+    detail: 'assay_info.cohorts in the tool config is empty.',
+    code: 'no_cohort',
   }
 }
 
@@ -110,6 +123,10 @@ export function useMyMriSession() {
     progress.value = 0
     total.value = 0
     findings.value = []
+    if (!cohort.value) {
+      failSession(noPatient())
+      return
+    }
     try {
       await repost()
       const loaded = await loadFindings()

@@ -12,6 +12,8 @@ export interface MyMriError {
 export interface ProgressEvent { case: string, current: number, total_cases: number }
 
 const UNREACHABLE = 'The server could not be reached.'
+/** What nginx answers, with its own page, when the backend behind it is down or too slow. */
+const GATEWAY_STATUSES = new Set([502, 503, 504])
 
 export function isAbort(e: unknown): boolean {
   return e instanceof DOMException && e.name === 'AbortError'
@@ -33,7 +35,10 @@ async function errorFromResponse(res: Response): Promise<MyMriError> {
     if (res.status === 409 && !err.code) err.code = 'assay_not_loaded'
     return err
   }
-  const err: MyMriError = { summary: UNREACHABLE, detail: `HTTP ${res.status}` }
+  // Not one of the backend's own errors. A proxy's page in place of the backend
+  // means it could not be reached; anything else is the server answering.
+  const summary = GATEWAY_STATUSES.has(res.status) ? UNREACHABLE : `The server returned an error (HTTP ${res.status}).`
+  const err: MyMriError = { summary, detail: `HTTP ${res.status}` }
   if (res.status === 409) err.code = 'assay_not_loaded'
   return err
 }

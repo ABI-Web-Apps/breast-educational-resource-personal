@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { MY_MRI_COPY } from '@/content/myMri'
-import { meshColour, useMyMriScene } from '@/myMri/useMyMriScene'
+import { findingColour } from '@/myMri/findingColour'
+import { useMyMriScene } from '@/myMri/useMyMriScene'
 import type { FindingSummary } from '@/myMri/useMyMriSession'
 
 /**
@@ -91,7 +92,7 @@ const { status, error, noMask, resetView } = useMyMriScene(host, {
           <li v-for="finding in props.findings" :key="finding.channel" class="tw:flex tw:items-center tw:gap-2">
             <span
               class="tw:size-3 tw:shrink-0 tw:rounded-full"
-              :style="{ backgroundColor: meshColour(finding.color) }"
+              :style="{ backgroundColor: findingColour(finding.color) }"
               aria-hidden="true"
             />
             {{ finding.label }}

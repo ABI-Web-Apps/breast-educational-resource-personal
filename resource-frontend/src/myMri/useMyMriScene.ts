@@ -18,6 +18,7 @@ import {
 import { getSceneBudget } from '@/composables/sceneBudget'
 import { useCopperStage } from '@/composables/useCopperStage'
 import { isAbort } from '@/myMri/api'
+import { findingColour } from '@/myMri/findingColour'
 import { placeInPatientFrame, worldFromLps } from '@/myMri/patientFrame'
 import type { FindingSummary } from '@/myMri/useMyMriSession'
 
@@ -58,16 +59,7 @@ const VIEW_PRESET: CopperViewPoint = {
   upVector: [0, -1, 0],
 }
 
-/** A mesh with no finding (or an unusable colour) is drawn in this neutral grey. */
-const NEUTRAL_COLOR = '#94a3b8'
-const HEX_COLOR = /^#[0-9a-f]{6}$/i
 const MESH_OPACITY = 0.5
-
-/** The colour a finding's mesh is drawn in, which its legend dot must match:
- *  its own `#rrggbb`, or the neutral grey (the backend's rule too). */
-export function meshColour(color: string | undefined): string {
-  return color !== undefined && HEX_COLOR.test(color) ? color : NEUTRAL_COLOR
-}
 /** Planes first, then the translucent mesh over them. */
 const PLANE_RENDER_ORDER = 1
 const MESH_RENDER_ORDER = 4
@@ -162,7 +154,8 @@ function colourMask(group: Object3D, findings: FindingSummary[]): void {
     const channel = channelOf(mesh)
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) replaced.add(material)
     mesh.material = new MeshStandardMaterial({
-      color: meshColour(channel !== undefined ? colours.get(channel) : undefined),
+      // A channel no finding names gets the neutral grey too.
+      color: findingColour(channel !== undefined ? colours.get(channel) : undefined),
       roughness: 0.35,
       metalness: 0.05,
       envMapIntensity: 1.2,

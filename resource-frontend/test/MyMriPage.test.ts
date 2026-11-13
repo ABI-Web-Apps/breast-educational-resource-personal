@@ -148,9 +148,51 @@ describe('MyMriPage session states', () => {
     wrapper.getComponent({ name: 'MyMriViewer' }).vm.$emit('retry')
     await flushPromises()
     expect(viewerMounts).toBe(mountsBefore + 1)
-    expect(vi.mocked(fetch).mock.calls.length).toBe(fetches)
+    // One findings request checks the backend still knows the assay; with it
+    // loaded (no_findings is an answer, not a failure), nothing is re-posted.
+    const urls = vi.mocked(fetch).mock.calls.slice(fetches).map(([url]) => String(url))
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toMatch(/\/api\/patients\/a-1\/sub-1\/findings$/)
     expect(wrapper.find('[data-state]').exists()).toBe(false)
     expect(wrapper.find('[data-slot="my-mri-report"]').exists()).toBe(true)
+  })
+
+  it('re-posts the config once when the viewer retries after a backend restart, then rebuilds it', async () => {
+    // A restarted backend has forgotten the assay: every patient route answers
+    // 409 until the config is posted again.
+    let restarted = false
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('tool-config')) {
+        calls.push(`tool-config with ${viewerMounts} viewer mounts`)
+        restarted = false
+        return completeStream()
+      }
+      calls.push('findings')
+      return restarted ? jsonRes(409, { detail: { code: 'assay_not_loaded', summary: 'Reload' } }) : noFindings()
+    }))
+    const wrapper = mountPage()
+    await flushPromises()
+    const mountsBefore = viewerMounts
+    calls.length = 0
+    restarted = true
+    wrapper.getComponent({ name: 'MyMriViewer' }).vm.$emit('retry')
+    await flushPromises()
+    expect(calls).toEqual(['findings', `tool-config with ${mountsBefore} viewer mounts`, 'findings'])
+    expect(viewerMounts).toBe(mountsBefore + 1)
+    expect(wrapper.find('[data-state]').exists()).toBe(false)
+  })
+
+  it('still rebuilds the viewer when the backend check before a retry fails', async () => {
+    stubBackend(noFindings)
+    const wrapper = mountPage()
+    await flushPromises()
+    const mountsBefore = viewerMounts
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    wrapper.getComponent({ name: 'MyMriViewer' }).vm.$emit('retry')
+    await flushPromises()
+    expect(viewerMounts).toBe(mountsBefore + 1)
+    expect(wrapper.find('[data-state]').exists()).toBe(false)
   })
 
   it('shows the colour sentence once findings are loaded', async () => {
@@ -161,6 +203,20 @@ describe('MyMriPage session states', () => {
     const wrapper = mountPage()
     await flushPromises()
     expect(wrapper.get('.content-slot').text()).toContain('orange is Finding 1, blue is Finding 2')
+  })
+
+  it('renders a finding with no colour, naming it grey as the legend and mesh draw it', async () => {
+    stubBackend(() => jsonRes(200, { findings: [
+      { label: 'Finding 1', lesion: { channel: 1, color: '#ff7043' } },
+      { label: 'Finding 2', lesion: { channel: 2, color: null } },
+    ] }))
+    const wrapper = mountPage()
+    await flushPromises()
+    expect(wrapper.get('.content-slot').text()).toContain('orange is Finding 1, grey is Finding 2')
+    expect(wrapper.getComponent({ name: 'MyMriViewer' }).props('findings')).toEqual([
+      { label: 'Finding 1', channel: 1, color: '#ff7043' },
+      { label: 'Finding 2', channel: 2, color: '#94a3b8' },
+    ])
   })
 })
 
@@ -174,6 +230,9 @@ describe('config and copy', () => {
     expect(colourSentence([{ label: 'Finding 1', color: '#ff7043' }, { label: 'Finding 2', color: '#42a5f5' }]))
       .toBe('orange is Finding 1, blue is Finding 2')
     expect(colourSentence([{ label: 'X', color: '#123456' }])).toBe('this colour is X')
+    // The neutral grey a finding without a usable colour is drawn in.
+    expect(colourSentence([{ label: 'X', color: '#94a3b8' }])).toBe('grey is X')
+    expect(colourSentence([{ label: 'X', color: null }, { label: 'Y', color: 'red' }])).toBe('grey is X, grey is Y')
     expect(colourSentence([])).toBe('')
     expect(MY_MRI_COPY.subline('sub-2')).toBe('Patient sub-2 · contrast phase 1')
   })
