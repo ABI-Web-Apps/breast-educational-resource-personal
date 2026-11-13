@@ -6,6 +6,7 @@ import cssInjectedByJs from 'vite-plugin-css-injected-by-js'
 import { VitePWA } from 'vite-plugin-pwa'
 import type { VitePWAOptions } from 'vite-plugin-pwa'
 import { scopeToRoot } from './tooling/postcss-scope'
+import { threeDecoderDefaults } from './tooling/three-decoder-defaults'
 import { readAppVersion } from './version'
 
 /**
@@ -48,7 +49,8 @@ export const pwaOptions: Partial<VitePWAOptions> = {
 }
 
 /**
- * `import.meta.url` for the UMD bundle: the URL of the script being evaluated.
+ * The UMD bundle's own URL, standing in for `import.meta.url` where three's
+ * decoder loaders read it (see `threeDecoderDefaults`).
  *
  * A UMD bundle has no `import.meta`, and Rolldown -- unlike Rollup, which
  * polyfilled it from `document.currentScript` -- replaces it with `{}`. Since
@@ -89,6 +91,9 @@ export default defineConfig(({ command }) => {
 
     plugins: [
       vue(),
+      // The standalone build is an ES module, so there the loaders keep their
+      // real `import.meta.url` -- only in a shape the asset plugin skips.
+      threeDecoderDefaults(isPluginBuild ? BUNDLE_URL : 'String(import.meta.url)'),
       ...(isPluginBuild ? [cssInjectedByJs()] : [VitePWA(pwaOptions)]),
     ],
 
@@ -111,11 +116,8 @@ export default defineConfig(({ command }) => {
       __APP_VERSION__: JSON.stringify(readAppVersion(fileURLToPath(new URL('./package.json', import.meta.url)))),
       // A UMD bundle runs straight in the browser, where `process` does not
       // exist; library mode leaves `process.env.NODE_ENV` in place for a
-      // consumer's bundler that will never come. `import.meta.url`: see
-      // `BUNDLE_URL`.
-      ...(isPluginBuild
-        ? { 'process.env.NODE_ENV': JSON.stringify('production'), 'import.meta.url': BUNDLE_URL }
-        : {}),
+      // consumer's bundler that will never come.
+      ...(isPluginBuild ? { 'process.env.NODE_ENV': JSON.stringify('production') } : {}),
     },
 
     resolve: {

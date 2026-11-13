@@ -41,6 +41,7 @@ yarn type-check      # vue-tsc over src/ and tooling/
 yarn test:browser    # Playwright; starts both servers itself
 yarn build           # standalone site  -> build/
 yarn build:plugin    # portal UMD bundle -> dist/my-app.umd.js
+yarn test:artefacts  # rebuilds both, then checks the 3D views paint in each
 ```
 
 `yarn dev` talks to the backend on `http://localhost:8082` (see

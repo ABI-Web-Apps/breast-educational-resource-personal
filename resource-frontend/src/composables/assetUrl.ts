@@ -14,7 +14,8 @@ export function assetUrl(path: string, base: string): string {
  * `url` resolved against `base` -- at a call site, `document.baseURI`, which
  * is what a `fetch` on the page itself would have resolved it against.
  *
- * Required for every URL handed to copper3d's `loadNrrd`. Since 4.1 it
+ * Required for every URL handed to copper3d's `loadNrrd` -- which is why
+ * `loadNrrdVolume` is the only caller of it. Since 4.1 `loadNrrd`
  * fetches the volume inside a Web Worker started from a `blob:` URL, and a
  * worker resolves `fetch` against its own URL: nothing relative can be parsed
  * against `blob:`, so the worker throws "Failed to parse URL" before any

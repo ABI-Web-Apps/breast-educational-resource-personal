@@ -1,9 +1,9 @@
-import { createReadStream, existsSync, statSync } from 'node:fs'
-import { createServer, request, type Server } from 'node:http'
+import { createReadStream, statSync } from 'node:fs'
+import { createServer, request, type Server, type ServerResponse } from 'node:http'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test } from '@playwright/test'
-import { centreDrawnFraction, focusedPanel, focusedStage, waitForModality } from './helpers'
+import { expect, test, type Page } from '@playwright/test'
+import { artefactProblem, artefactsRequired, centreDrawnFraction, focusedPanel, focusedStage, waitForModality } from './helpers'
 
 /**
  * The UMD bundle the portal mounts (`yarn build:plugin` -> `dist/`), mounted
@@ -24,11 +24,14 @@ import { centreDrawnFraction, focusedPanel, focusedStage, waitForModality } from
  * Portal-shaped paths, from `RemoteComponentApp.vue` and the workspace
  * CLAUDE.md: the page lives elsewhere than the bundle (so `document.baseURI`
  * is not the bundle's folder), the bundle and its `public/` files under
- * `/tools/<expose>/primary/`, the backend under `/plugin/<expose>/api/` (or
- * `/api/` for a bundle built without `VITE_PLUGIN_ROUTE_PREFIX`).
+ * `/tools/<expose>/primary/`, and the backend ONLY under
+ * `/plugin/<expose>/api/`. The portal's builder always sets
+ * `VITE_PLUGIN_ROUTE_PREFIX`, so a bundle built without it is not the
+ * artefact that ships: its bare `/api/` requests are refused and reported.
+ * `yarn test:artefacts` builds it with a prefix.
  *
- * SKIPPED when there is no `dist/my-app.umd.js`: run `yarn build:plugin`
- * first to include these.
+ * Skipped when `dist/my-app.umd.js` is missing or older than the source, and
+ * failed instead under CI or REQUIRE_ARTEFACTS -- see `artefactProblem`.
  */
 
 const DIST = resolve(dirname(fileURLToPath(import.meta.url)), '../dist')
@@ -59,7 +62,7 @@ const HOST_PAGE = `<!doctype html>
 </script>
 </body></html>`
 
-function sendFile(res: import('node:http').ServerResponse, path: string) {
+function sendFile(res: ServerResponse, path: string) {
   try {
     const stat = statSync(path)
     if (!stat.isFile()) throw new Error('not a file')
@@ -71,22 +74,44 @@ function sendFile(res: import('node:http').ServerResponse, path: string) {
   }
 }
 
+/** Requests that reached for `/api/` without the route prefix. */
+const strayApi: string[] = []
+
+/** Records every response whose URL matches `pattern`, as `<status> <url>`. */
+function responses(page: Page, pattern: RegExp): string[] {
+  const seen: string[] = []
+  page.on('response', (r) => { if (pattern.test(r.url())) seen.push(`${r.status()} ${r.url()}`) })
+  return seen
+}
+
+function expectAll200(seen: string[], what: string) {
+  expect(seen.length, `${what} was never requested`).toBeGreaterThan(0)
+  expect(seen.every(s => s.startsWith('200 ')), seen.join('\n')).toBe(true)
+}
+
 let server: Server | undefined
+const distProblem = artefactProblem('dist/my-app.umd.js')
 
 test.describe('the plugin bundle, mounted as the portal mounts it', () => {
-  test.skip(!existsSync(join(DIST, 'my-app.umd.js')), 'no dist/my-app.umd.js -- run `yarn build:plugin` first')
+  test.skip(Boolean(distProblem) && !artefactsRequired, `${distProblem} -- run \`yarn test:artefacts\``)
 
   test.beforeAll(async () => {
+    if (distProblem) throw new Error(`${distProblem} -- run \`yarn test:artefacts\` (CI or REQUIRE_ARTEFACTS is set, so this fails rather than skips)`)
     server = createServer((req, res) => {
       const url = (req.url ?? '/').split('?')[0]!
-      const api = url.match(/^(?:\/plugin\/[^/]+)?(\/api\/.*)$/)
-      if (api) {
-        // The backend, as nginx proxies it (see playwright.config.ts).
-        const path = api[1]! + (req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : '')
-        const upstream = request({ host: '127.0.0.1', port: 8082, path, method: req.method, headers: req.headers },
+      const prefixed = url.match(/^\/plugin\/[^/]+(\/api\/.*)$/)
+      if (prefixed) {
+        // The backend, as the portal's generated nginx location proxies it.
+        const query = req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : ''
+        const upstream = request({ host: '127.0.0.1', port: 8082, path: prefixed[1]! + query, method: req.method, headers: req.headers },
           (up) => { res.writeHead(up.statusCode ?? 502, up.headers); up.pipe(res) })
         upstream.on('error', () => res.writeHead(502).end())
         req.pipe(upstream)
+        return
+      }
+      if (url.startsWith('/api/')) {
+        strayApi.push(url)
+        res.writeHead(404).end('no backend at /api/ -- the portal serves it under /plugin/<expose>/api/')
         return
       }
       if (url === '/vendor/vue.js') return sendFile(res, join(NODE_MODULES, 'vue/dist/vue.global.prod.js'))
@@ -105,7 +130,14 @@ test.describe('the plugin bundle, mounted as the portal mounts it', () => {
   })
 
   test.afterAll(async () => {
-    await new Promise<void>(done => server?.close(() => done()))
+    // Unset when beforeAll refused a missing or stale artefact.
+    if (server) await new Promise<void>(done => server!.close(() => done()))
+  })
+
+  test.beforeEach(() => { strayApi.length = 0 })
+  test.afterEach(() => {
+    expect(strayApi, 'requests to /api/ without the route prefix: dist/ was built without VITE_PLUGIN_ROUTE_PREFIX -- run `yarn test:artefacts`')
+      .toEqual([])
   })
 
   test('the bundle evaluates, defines its global and mounts', async ({ page }) => {
@@ -120,20 +152,34 @@ test.describe('the plugin bundle, mounted as the portal mounts it', () => {
     await expect(page.getByRole('link', { name: 'Density A' }).first()).toBeVisible({ timeout: 30_000 })
   })
 
-  test('an imaging volume loads and paints inside the mounted plugin', async ({ page }) => {
+  /** Opens Density A's `tab` (the plugin routes in memory, so the address
+   *  bar cannot deep-link) and waits for it to paint. */
+  async function openAndPaint(page: Page, tab: string) {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(`${base}/portal/tools/ber`)
-
-    // The plugin routes in memory, so the address bar cannot deep-link.
     await page.getByRole('link', { name: 'Density A' }).first().click({ timeout: 30_000 })
-    await page.getByRole('link', { name: 'MRI', exact: true }).first().click()
+    await page.getByRole('link', { name: tab, exact: true }).first().click()
 
     await waitForModality(page)
     await expect(focusedPanel(page).getByRole('button', { name: /reset/i })).toBeEnabled({ timeout: 60_000 })
     await expect.poll(() => centreDrawnFraction(focusedStage(page)), {
-      message: 'the stage is healthy but drew no image',
+      message: 'the stage is healthy but drew nothing',
       timeout: 30_000,
     }).toBeGreaterThan(0.2)
     await expect(page.getByRole('alert')).toHaveCount(0)
+  }
+
+  test('a Draco GLB decodes and paints inside the mounted plugin', async ({ page }) => {
+    const models = responses(page, /\/plugin\/[^/]+\/api\/.*\.glb$/)
+    const decoder = responses(page, /\/tools\/ber\/primary\/draco\//)
+    await openAndPaint(page, 'Anatomy')
+    expectAll200(models, 'the anatomy model')
+    expectAll200(decoder, 'the Draco decoder (from the bundle\'s own draco/)')
+  })
+
+  test('an imaging volume loads and paints inside the mounted plugin', async ({ page }) => {
+    const volumes = responses(page, /\/plugin\/[^/]+\/api\/.*\.nrrd$/)
+    await openAndPaint(page, 'MRI')
+    expectAll200(volumes, 'the volume')
   })
 })
