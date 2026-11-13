@@ -22,7 +22,7 @@ test.use({
 
 test.describe('My MRI', () => {
   test('opens from the sidebar with the scan and the report', async ({ page }) => {
-    const report = page.waitForResponse(res => /\/api\/patients\/.*report/.test(res.url()), { timeout: 120_000 })
+    const report = page.waitForResponse(res => /\/api\/patients\/[^/]+\/[^/]+\/report\.pdf/.test(res.url()), { timeout: 120_000 })
 
     await page.goto('/')
     await page.getByRole('link', { name: /My MRI/ }).first().click()

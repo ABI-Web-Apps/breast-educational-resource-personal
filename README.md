@@ -61,12 +61,19 @@ MINIO_API_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose up -d minio minio-ini
 
 # 2. Upload the dataset folder as measurements/workdir -- through the console
 #    (http://localhost:9011, minioadmin / minioadmin), or:
-docker compose run --rm --no-deps -v "./resource-backend/static/workdir:/w:ro" --entrypoint sh minio-init   -c "mc alias set l http://minio:9000 minioadmin minioadmin && mc mirror --overwrite /w l/measurements/workdir"
+docker compose run --rm --no-deps -v "./resource-backend/static/workdir:/w:ro" --entrypoint sh minio-init \
+  -c "mc alias set l http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin} && mc mirror --overwrite /w l/measurements/workdir"
 
-# 3. Run the backend against it (set MINIO_ENDPOINT=localhost:9010 on PowerShell with $env:)
+# 3. Run the backend against it
 cd resource-backend
 MINIO_ENDPOINT=localhost:9010 .venv/Scripts/python -m uvicorn app.main:app --port 8082
+# PowerShell:
+#   $env:MINIO_ENDPOINT='localhost:9010'; .venv\Scripts\python -m uvicorn app.main:app --port 8082
 ```
+
+In Git Bash, a `docker ... -v ./path:/x` mount needs `MSYS_NO_PATHCONV=1` in
+front of the command (or run it from PowerShell); otherwise the path is mangled
+and the mount silently does not take effect.
 
 Then open <http://localhost:3158/my-mri>. The report is a WeasyPrint PDF, which
 needs system libraries (Pango, fonts) that only the Docker image installs: on a
@@ -75,11 +82,26 @@ backend." and the PDF tests are skipped. Use the full Docker stack to see the
 report.
 
 `resource-frontend/test-browser/my-mri.spec.ts` covers the page end to end. It
-runs only with a dataset in place:
+runs only with `MY_MRI_E2E=1` and a dataset in place. Its base URL is the Docker
+stack on :3159 by default. The standalone stack publishes on :3158 unless told
+otherwise, so bring it up with the port the spec expects:
 
 ```bash
+FRONTEND_PORT=3159 docker compose up --build -d
 cd resource-frontend
-MY_MRI_E2E=1 yarn playwright test my-mri                      # Docker stack on :3159
+MY_MRI_E2E=1 yarn playwright test my-mri
+```
+
+`playwright.config.ts` always declares `webServer` entries (`yarn dev` on :3158
+and uvicorn on :8082, `reuseExistingServer: true`), so running the spec also
+starts a local dev server and backend when none is running; against the Docker
+stack they are simply unused.
+
+To run it against a local backend instead, the dev server and a backend started
+with `MINIO_ENDPOINT=localhost:9010` (step 3 above) must already be running: a
+uvicorn that Playwright spawns itself does not have that variable.
+
+```bash
 MY_MRI_E2E=1 MY_MRI_BASE_URL=http://localhost:3158 MY_MRI_BACKEND=local yarn playwright test my-mri
 ```
 
