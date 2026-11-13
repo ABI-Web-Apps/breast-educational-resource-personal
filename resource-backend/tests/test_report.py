@@ -349,6 +349,72 @@ def test_a_findings_download_failure_is_503_and_not_cached(loaded_client, cache_
     assert len(fake_render) == 1
 
 
+def _give_sub2_a_copy_of_sub1(dataset) -> None:
+    """sub-2 gets byte-identical copies of all three of sub-1's inputs, findings included."""
+    import shutil
+
+    import pandas as pd
+
+    for sample, name in (("sam-1", "c1.nrrd"), ("sam-2", "m.nii.gz"), ("sam-3", "f.json")):
+        target = dataset / "primary" / "sub-2" / sample
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(dataset / "primary" / "sub-1" / sample / name, target / name)
+    samples = pd.read_excel(dataset / "samples.xlsx")
+    samples.loc[len(samples)] = {"sample id": "sam-3", "subject id": "sub-2", "sample type": "findings_json"}
+    samples.to_excel(dataset / "samples.xlsx", index=False)
+    manifest = pd.read_excel(dataset / "manifest.xlsx")
+    manifest.loc[len(manifest)] = {
+        "filename": "primary/sub-2/sam-3/f.json",
+        "timestamp": "2026-09-03 01:34:10",
+        "description": "File of subject sub-2 sample sam-3",
+        "file type": ".json",
+    }
+    manifest.to_excel(dataset / "manifest.xlsx", index=False)
+
+
+def test_two_cohorts_with_identical_inputs_each_get_their_own_report(
+    sparc_dataset, fake_minio, client, tool_config, cache_dir, monkeypatch
+):
+    # A MinIO etag is the MD5 of the object's bytes, not of its path, so two patients whose
+    # inputs are byte-identical share every object identity. The report prints the cohort.
+    import hashlib
+
+    from app.services.minio_service import MinIOService
+
+    real_stat = fake_minio.stat_object
+
+    def content_etag(bucket, key):
+        stat = real_stat(bucket, key)
+        stat.etag = hashlib.md5(fake_minio.get_object(bucket, key).read()).hexdigest()
+        return stat
+
+    monkeypatch.setattr(fake_minio, "stat_object", content_etag)
+    _give_sub2_a_copy_of_sub1(sparc_dataset)
+    service = MinIOService(client=fake_minio)
+    base = "http://localhost:9000/measurements/workdir/primary"
+    for sample, name in (("sam-1", "c1.nrrd"), ("sam-2", "m.nii.gz"), ("sam-3", "f.json")):
+        assert service.object_identity(f"{base}/sub-1/{sample}/{name}") == service.object_identity(
+            f"{base}/sub-2/{sample}/{name}"
+        )
+
+    # The "PDF" is the report's HTML, so each response shows whose report it is.
+    monkeypatch.setattr(report, "require_weasyprint", lambda: None)
+    monkeypatch.setattr(
+        report,
+        "build_report_pdf",
+        lambda cohort, findings, volume, mask, zone: build_report_html(cohort, findings, volume, mask, zone).encode(),
+    )
+    tool_config["assay_info"]["cohorts"] = ["sub-1", "sub-2"]
+    assert client.post("/api/tool-config", json=tool_config).status_code == 200
+
+    first = client.get(URL.format("sub-1"))
+    second = client.get(URL.format("sub-2"))
+    assert first.status_code == 200 and second.status_code == 200
+    assert '<h1 class="case-name">sub-1</h1>' in first.text
+    assert '<h1 class="case-name">sub-2</h1>' in second.text
+    assert len(list(cache_dir.glob("*.pdf"))) == 2
+
+
 def test_a_changed_report_template_is_rendered_again(loaded_client, cache_dir, fake_render, monkeypatch):
     loaded_client.get(URL.format("sub-1"))
     monkeypatch.setattr(report, "report_version", lambda: "changed")

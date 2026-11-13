@@ -42,6 +42,9 @@ _GZIP_MAGIC = b"\x1f\x8b"
 _ENCODING_LINE = re.compile(rb"^encoding:[ \t]*.*$", re.IGNORECASE | re.MULTILINE)
 _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]")
 
+#: Every patient response: a browser must not keep patient data, not even heuristically.
+_NO_STORE = {"Cache-Control": "no-store"}
+
 
 def clear_mri_cache() -> None:
     with _mri_cache_lock:
@@ -115,7 +118,7 @@ def get_mri(assay_uuid: str, cohort: str, service: MinIOService = Depends(get_mi
     url = resolved_input(assay_uuid, cohort, MRI_SAMPLE_TYPE)
     if url is None:
         raise _error(404, "no_mri", f"Cohort {cohort} has no MRI volume.")
-    return Response(content=_encoded_mri(service, url), media_type="application/octet-stream")
+    return Response(content=_encoded_mri(service, url), media_type="application/octet-stream", headers=_NO_STORE)
 
 
 def _load_findings(service: MinIOService, url: str | None, cohort: str) -> schema.Findings:
@@ -140,7 +143,7 @@ def _load_findings(service: MinIOService, url: str | None, cohort: str) -> schem
 @router.get("/api/patients/{assay_uuid}/{cohort}/findings")
 def get_findings(assay_uuid: str, cohort: str, service: MinIOService = Depends(get_minio_service)):
     record = _load_findings(service, resolved_input(assay_uuid, cohort, FINDINGS_SAMPLE_TYPE), cohort)
-    return Response(content=schema.dumps(record), media_type="application/json")
+    return Response(content=schema.dumps(record), media_type="application/json", headers=_NO_STORE)
 
 
 def _channel_colors(service: MinIOService, findings_url: str | None) -> dict[int, str]:
@@ -188,7 +191,7 @@ def get_mask_glb(assay_uuid: str, cohort: str, service: MinIOService = Depends(g
         return glb
 
     path = DerivedCache(Config.CACHE_DIR).get_or_build(f"glb:{mask_identity}:{findings_identity}:{mesh.MESH_VERSION}", ".glb", build)
-    return FileResponse(path, media_type="model/gltf-binary")
+    return FileResponse(path, media_type="model/gltf-binary", headers=_NO_STORE)
 
 
 def _zone_key(zone) -> str:
@@ -205,9 +208,11 @@ def get_report_pdf(
     """The findings report as a PDF, rendered on first request and then served from the cache.
 
     A plain `def` route, so FastAPI runs it, and the render, in the threadpool: a render never
-    blocks other requests. The cache key names every source object's identity, the reader's
-    zone and the report's own version, so a re-uploaded input, another zone or a changed
-    template each get a fresh render.
+    blocks other requests. The cache key names the cohort, every source object's identity, the
+    reader's zone and the report's own version, so a re-uploaded input, another zone or a
+    changed template each get a fresh render. The cohort is there because an identity comes
+    from an object's bytes, not its path, and the report prints the cohort: two patients with
+    identical inputs must not share a PDF.
     """
     findings_url = resolved_input(assay_uuid, cohort, FINDINGS_SAMPLE_TYPE)
     findings_identity = _identity_or_none(service, findings_url)
@@ -220,6 +225,7 @@ def get_report_pdf(
     zone = resolve_zone(tz)
     key = ":".join([
         "pdf",
+        cohort,
         volume_identity or "none",
         mask_identity or "none",
         findings_identity,
@@ -259,6 +265,6 @@ def get_report_pdf(
         headers={
             # inline, so an iframe previews it rather than downloading it.
             "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "no-store",
+            **_NO_STORE,
         },
     )

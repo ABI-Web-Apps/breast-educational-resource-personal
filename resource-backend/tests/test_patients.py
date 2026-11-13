@@ -5,6 +5,7 @@ import io
 
 import numpy as np
 import nrrd
+import pytest
 
 from app.router import patients
 from app.utils.setup import Config
@@ -97,6 +98,13 @@ def test_mri_with_unsupported_encoding_is_422(loaded_client, sparc_dataset):
     _c1(sparc_dataset).write_bytes(b"NRRD0004\ntype: uchar\ndimension: 1\nsizes: 2\nencoding: ascii\n\n1 2\n")
     r = loaded_client.get("/api/patients/assay-001/sub-1/mri")
     assert r.status_code == 422 and r.json()["detail"]["code"] == "invalid_mri"
+
+
+@pytest.mark.parametrize("route", ["mri", "findings", "mask.glb"])
+def test_patient_data_is_never_stored_by_the_browser(loaded_client, cache_dir, route):
+    r = loaded_client.get(f"/api/patients/assay-001/sub-1/{route}")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-store"
 
 
 def test_unknown_assay_409(client):
