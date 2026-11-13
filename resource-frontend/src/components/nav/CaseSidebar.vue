@@ -49,6 +49,12 @@ const GROUP_ICON: Record<Exclude<CaseGroup, 'overview'>, string[]> = {
 }
 
 /**
+ * YOUR RESULTS: a page with a folded corner and two text lines -- a report.
+ * Plain rectilinear strokes, which is what survives at 16px.
+ */
+const RESULTS_ICON = ['M7 3.5h7l4 4V20.5H7z', 'M14 3.5v4h4', 'M10 12.5h5', 'M10 16.5h5']
+
+/**
  * The home row's own icon.
  *
  * This does NOT reuse ModalityStepper's anatomy mark (a chest-wall line plus
@@ -62,12 +68,6 @@ const GROUP_ICON: Record<Exclude<CaseGroup, 'overview'>, string[]> = {
  * house -- roof, walls, door -- is unambiguous at 16-20px and reads as
  * "home" rather than "start".
  */
-/**
- * YOUR RESULTS: a page with a folded corner and two text lines -- a report.
- * Plain rectilinear strokes, which is what survives at 16px.
- */
-const RESULTS_ICON = ['M7 3.5h7l4 4V20.5H7z', 'M14 3.5v4h4', 'M10 12.5h5', 'M10 16.5h5']
-
 const HOME_ICON = ['M4 11 12 4l8 7', 'M5.5 10.5v9.5h13v-9.5', 'M10 20v-6h4v6']
 
 /**

@@ -62,3 +62,28 @@ describe('config and copy', () => {
     expect(MY_MRI_COPY.subline('sub-2')).toBe('Patient sub-2 · contrast phase 1')
   })
 })
+
+describe('MyMriPage inside the real layout', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('puts heading, stage columns and panel copy in their slots, with a non-square stage', () => {
+    const wrapper = mount(MyMriPage, {
+      props: { route },
+      global: {
+        stubs: {
+          AppHeader: { template: '<header />' },
+          CaseSidebar: { template: '<nav />' },
+          TourLauncher: true,
+          TourLayer: true,
+        },
+      },
+    })
+    const stage = wrapper.get('[data-stage-column] section')
+    expect(stage.attributes('aria-label')).toBe('Your MRI scan and report')
+    expect(stage.classes()).not.toContain('max-md:aspect-square')
+    expect(stage.text()).toContain('3D view')
+    expect(stage.text()).toContain('Report')
+    expect(wrapper.get('[data-stage-column] h1').text()).toBe('Your MRI scan')
+    expect(wrapper.get('#case-content-panel').text()).toContain("WHAT YOU'RE SEEING")
+  })
+})
