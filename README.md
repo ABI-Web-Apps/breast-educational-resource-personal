@@ -2,7 +2,9 @@
 
 An interactive breast education resource from the Auckland Bioengineering
 Institute: anatomy, mammogram and MRI side by side for the four density
-grades, benign findings and cancers, with a guided tour.
+grades, benign findings and cancers, with a guided tour. A **My MRI** page
+shows a patient's own scan in 3D, with the marked areas, beside a findings
+report (PDF) built from a dataset held in MinIO.
 
 It runs three ways from one source tree:
 
@@ -15,7 +17,7 @@ It runs three ways from one source tree:
 ```
 breast-educational-resource/
 ├── resource-frontend/   Vue 3 + Vite + Tailwind CSS 4 + Pinia (no vue-router)
-├── resource-backend/    FastAPI: serves the imaging catalogue under /api
+├── resource-backend/    FastAPI: the imaging catalogue and the My MRI data/report under /api
 ├── config.portal.json   Portal registration metadata
 ├── docker-compose.yml   Standalone stack
 ├── scripts/             Asset pipeline (imaging, PWA icons)
@@ -46,6 +48,55 @@ yarn test:artefacts  # rebuilds both, then checks the 3D views paint in each
 
 `yarn dev` talks to the backend on `http://localhost:8082` (see
 `resource-frontend/.env.example`); the backend allows that origin by default.
+
+### My MRI
+
+The My MRI page reads a SPARC dataset from the `measurements` bucket, so it
+needs a MinIO with the dataset in it. The education pages do not.
+
+```bash
+# 1. Start MinIO only. Skip the overrides if 9000/9001 are free; set them when
+#    something else (for example the validator) already holds those ports.
+MINIO_API_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose up -d minio minio-init
+
+# 2. Upload the dataset folder as measurements/workdir -- through the console
+#    (http://localhost:9011, minioadmin / minioadmin), or:
+docker compose run --rm --no-deps -v "./resource-backend/static/workdir:/w:ro" --entrypoint sh minio-init   -c "mc alias set l http://minio:9000 minioadmin minioadmin && mc mirror --overwrite /w l/measurements/workdir"
+
+# 3. Run the backend against it (set MINIO_ENDPOINT=localhost:9010 on PowerShell with $env:)
+cd resource-backend
+MINIO_ENDPOINT=localhost:9010 .venv/Scripts/python -m uvicorn app.main:app --port 8082
+```
+
+Then open <http://localhost:3158/my-mri>. The report is a WeasyPrint PDF, which
+needs system libraries (Pango, fonts) that only the Docker image installs: on a
+local backend the report column shows "Report rendering needs the Docker
+backend." and the PDF tests are skipped. Use the full Docker stack to see the
+report.
+
+`resource-frontend/test-browser/my-mri.spec.ts` covers the page end to end. It
+runs only with a dataset in place:
+
+```bash
+cd resource-frontend
+MY_MRI_E2E=1 yarn playwright test my-mri                      # Docker stack on :3159
+MY_MRI_E2E=1 MY_MRI_BASE_URL=http://localhost:3158 MY_MRI_BACKEND=local yarn playwright test my-mri
+```
+
+### Data
+
+The dataset (`resource-backend/static/workdir/`, a SPARC dataset with the
+registered MRI, the researcher's mask and a findings JSON per patient) is
+patient data. It lives in the `measurements` bucket under `workdir/`, and is
+**never committed or baked into the image**: `static/workdir/` and
+`minio_data/` are gitignored, and the image ships only `static/modelView/`. The
+backend finds files by their Sample Type in `samples.xlsx`, never by filename,
+reads volumes into memory, and writes nothing back to MinIO.
+
+The page reads which patient, dataset and MinIO to use from
+`resource-frontend/src/assets/tool_config.json` through `getToolConfig()` in
+`src/myMri/config.ts`. That function is the seam the portal will replace to
+supply its own config.
 
 ## How it fits the portal
 
@@ -105,11 +156,21 @@ builder reads `config.portal.json`, runs `yarn build:plugin` in
 the `digitaltwins-platform` network. Nginx then routes
 `/plugin/<expose_name>/` to the backend container on port 8082.
 
+The backend reads the dataset from the **portal's** MinIO: the plugin compose
+takes its keys from `MINIO_SERVER_ACCESS_KEY` / `MINIO_SERVER_SECRET_KEY`
+(default `minioadmin`) and reaches it as `minio:9000` on that network. Upload
+the dataset to that MinIO's `measurements` bucket as `workdir/`.
+
 ### Standalone (Docker)
 
 ```bash
 docker compose up --build   # http://localhost:3158
 ```
+
+The standalone stack includes its own MinIO (`pgsty/minio`), which `minio-init`
+gives a `measurements` bucket. Its API and console are published on 9000/9001;
+override with `MINIO_API_PORT`, `MINIO_CONSOLE_PORT` and `FRONTEND_PORT` when
+those are taken. Upload the dataset as in the My MRI section above.
 
 ### GitHub Pages
 

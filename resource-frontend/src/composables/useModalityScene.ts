@@ -725,8 +725,8 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
    * `cameraPositionFlag` (`baseScene.loadView`), and that flag is what
    * suppresses `loadGltf`'s own "frame the new model" camera write (it only
    * moves the camera while the flag is unset). Without a previous
-   * `loadView` this method would silently move the camera, which is exactly
-   * what §7.1 forbids.
+   * `loadView` this method would silently move the camera, which would break
+   * the seamless morph.
    */
   async function prepareMorph(slug: string, modality: Modality): Promise<AnatomyMorph | null> {
     const renderer = stage.renderer.value
