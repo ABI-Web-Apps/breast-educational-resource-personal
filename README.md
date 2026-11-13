@@ -54,26 +54,48 @@ yarn test:artefacts  # rebuilds both, then checks the 3D views paint in each
 The My MRI page reads a SPARC dataset from the `measurements` bucket, so it
 needs a MinIO with the dataset in it. The education pages do not.
 
+MinIO publishes its API on host port 9000 and its console on 9001. When
+something else already holds those ports (for example the validator), set
+`MINIO_API_PORT` and `MINIO_CONSOLE_PORT` (say 9010 and 9011) for every
+`docker compose` command in this repo. The local backend finds MinIO through
+`MINIO_ENDPOINT`: `localhost:9000` by default, or `localhost:<MINIO_API_PORT>`
+with the overrides.
+
+These commands are for bash (Git Bash on Windows); a PowerShell version
+follows.
+
 ```bash
-# 1. Start MinIO only. Skip the overrides if 9000/9001 are free; set them when
-#    something else (for example the validator) already holds those ports.
-MINIO_API_PORT=9010 MINIO_CONSOLE_PORT=9011 docker compose up -d minio minio-init
+# 1. Start MinIO only (prefix the port overrides if you need them).
+docker compose up -d minio minio-init
 
-# 2. Upload the dataset folder as measurements/workdir -- through the console
-#    (http://localhost:9011, minioadmin / minioadmin), or:
-docker compose run --rm --no-deps -v "./resource-backend/static/workdir:/w:ro" --entrypoint sh minio-init \
-  -c "mc alias set l http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin} && mc mirror --overwrite /w l/measurements/workdir"
+# 2. Upload the dataset folder as measurements/workdir. MSYS_NO_PATHCONV=1 is
+#    for Git Bash: without it the -v path is mangled and the mount silently does
+#    not take effect. It does nothing elsewhere. The keys are expanded inside
+#    the container, from the compose file's MINIO_ROOT_USER/MINIO_ROOT_PASSWORD.
+MSYS_NO_PATHCONV=1 docker compose run --rm --no-deps -v "./resource-backend/static/workdir:/w:ro" --entrypoint sh minio-init \
+  -c 'mc alias set l http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && mc mirror --overwrite /w l/measurements/workdir'
 
-# 3. Run the backend against it
+# 3. Run the backend against it (localhost:9010 with the overrides).
 cd resource-backend
-MINIO_ENDPOINT=localhost:9010 .venv/Scripts/python -m uvicorn app.main:app --port 8082
-# PowerShell:
-#   $env:MINIO_ENDPOINT='localhost:9010'; .venv\Scripts\python -m uvicorn app.main:app --port 8082
+MINIO_ENDPOINT=localhost:9000 .venv/Scripts/python -m uvicorn app.main:app --port 8082
 ```
 
-In Git Bash, a `docker ... -v ./path:/x` mount needs `MSYS_NO_PATHCONV=1` in
-front of the command (or run it from PowerShell); otherwise the path is mangled
-and the mount silently does not take effect.
+The same in PowerShell. `$env:` settings last for the rest of the session.
+Leave out the first line when 9000/9001 are free, and then use
+`$env:MINIO_ENDPOINT='localhost:9000'`.
+
+```powershell
+$env:MINIO_API_PORT='9010'; $env:MINIO_CONSOLE_PORT='9011'
+docker compose up -d minio minio-init
+docker compose run --rm --no-deps -v "./resource-backend/static/workdir:/w:ro" --entrypoint sh minio-init -c 'mc alias set l http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD && mc mirror --overwrite /w l/measurements/workdir'
+cd resource-backend
+$env:MINIO_ENDPOINT='localhost:9010'; .venv\Scripts\python -m uvicorn app.main:app --port 8082
+```
+
+Instead of step 2 you can upload through the MinIO console
+(<http://localhost:9001>, or your `MINIO_CONSOLE_PORT`; `minioadmin` /
+`minioadmin`): open the `measurements` bucket and upload the contents of
+`static/workdir/` into a `workdir/` folder.
 
 Then open <http://localhost:3158/my-mri>. The report is a WeasyPrint PDF, which
 needs system libraries (Pango, fonts) that only the Docker image installs: on a
@@ -84,7 +106,8 @@ report.
 `resource-frontend/test-browser/my-mri.spec.ts` covers the page end to end. It
 runs only with `MY_MRI_E2E=1` and a dataset in place. Its base URL is the Docker
 stack on :3159 by default. The standalone stack publishes on :3158 unless told
-otherwise, so bring it up with the port the spec expects:
+otherwise, so bring it up with the port the spec expects (plus the MinIO port
+overrides, if you use them):
 
 ```bash
 FRONTEND_PORT=3159 docker compose up --build -d
@@ -98,8 +121,8 @@ starts a local dev server and backend when none is running; against the Docker
 stack they are simply unused.
 
 To run it against a local backend instead, the dev server and a backend started
-with `MINIO_ENDPOINT=localhost:9010` (step 3 above) must already be running: a
-uvicorn that Playwright spawns itself does not have that variable.
+with `MINIO_ENDPOINT` pointing at your MinIO (step 3 above) must already be
+running: a uvicorn that Playwright spawns itself does not have that variable.
 
 ```bash
 MY_MRI_E2E=1 MY_MRI_BASE_URL=http://localhost:3158 MY_MRI_BACKEND=local yarn playwright test my-mri
@@ -172,11 +195,25 @@ The scripts resolve their tools (`@gltf-transform`, `pngjs`) from
 
 ### Portal plugin
 
-Register the repository (or upload it as a folder/zip) in the portal. The
-builder reads `config.portal.json`, runs `yarn build:plugin` in
-`resource-frontend/`, and deploys `resource-backend/docker-compose.yml` onto
-the `digitaltwins-platform` network. Nginx then routes
-`/plugin/<expose_name>/` to the backend container on port 8082.
+Register the GitHub repository in the portal. The builder reads
+`config.portal.json`, runs `yarn build:plugin` in `resource-frontend/`, and
+deploys `resource-backend/docker-compose.yml` onto the `digitaltwins-platform`
+network. Nginx then routes `/plugin/<expose_name>/` to the backend container on
+port 8082.
+
+> [!WARNING]
+> **Never upload your working folder to the portal.** The portal's folder/zip
+> upload copies the whole project, everything except `.git`, `node_modules`,
+> `dist` and `build`, into its **public** `tools` bucket. A development
+> checkout holds patient data that would then be public:
+>
+> - `resource-backend/static/workdir/`: the patient dataset
+> - `resource-backend/minio_data/`: the local MinIO's storage, the same data again
+> - `resource-backend/cache/`: report PDFs and meshes built from it
+>
+> To register without GitHub, upload a clean export of the committed tree,
+> which holds none of them:
+> `git archive --format=zip -o breast-educational-resource.zip HEAD`.
 
 The backend reads the dataset from the **portal's** MinIO: the plugin compose
 takes its keys from `MINIO_SERVER_ACCESS_KEY` / `MINIO_SERVER_SECRET_KEY`
@@ -199,7 +236,9 @@ those are taken. Upload the dataset as in the My MRI section above.
 `.github/workflows/deploy_on_github_pages.yml` builds the standalone app under
 `/<repo>/`, copies the imaging catalogue beside it (`VITE_ASSET_BASE`), and
 publishes to the `gh-pages` branch. It runs on a new release, or on demand
-from the Actions tab.
+from the Actions tab. Pages has no backend, so that build leaves My MRI out:
+setting `VITE_ASSET_BASE` hides YOUR RESULTS and makes `/my-mri` a 404
+(`hasBackend()` in `src/runtime/env.ts`).
 
 ## Important documentation
 

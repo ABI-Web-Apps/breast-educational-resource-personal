@@ -225,19 +225,20 @@ export function useCopperStage(host: Ref<HTMLElement | null | undefined>, option
     resizeObserver.observe(host.value)
 
     /**
-     * Camera input needs no frame pump here, as of copper3d 3.9.0.
+     * Camera input needs no frame pump here: copper3d breaks the deadlock
+     * itself.
      *
-     * It used to. `Copper3dTrackballControls` dispatches `change` only from
-     * inside its `update()`, and `update()` only runs inside
-     * `scene.render()` -- under on-demand rendering that closes a deadlock:
-     * no render, so no update, so the camera never moves, so no `change`, so
-     * nothing requests a render, and the viewer is dead to the mouse. This
-     * composable worked around it by listening for pointer and wheel input
-     * and requesting a frame itself.
+     * `Copper3dTrackballControls` dispatches `change` only from inside its
+     * `update()`, and `update()` only runs inside `scene.render()` -- under
+     * on-demand rendering that closes a deadlock: no render, so no update,
+     * so the camera never moves, so no `change`, so nothing requests a
+     * render, and the viewer is dead to the mouse. This composable once
+     * worked around it by listening for pointer and wheel input and
+     * requesting a frame itself.
      *
-     * 3.9.0 fixes it at the source with `updateOnInput`, which
+     * copper3d's trackball has an `updateOnInput` flag, which
      * `copperSceneOnDemond` turns on for the scenes it builds with
-     * `{ controls: "copper3d" }`. The input handlers now move the camera and
+     * `{ controls: "copper3d" }`. The input handlers then move the camera and
      * dispatch `change` themselves, and the scene's own listener schedules
      * the frame. `test-browser/camera-drag.spec.ts` is what holds this --
      * the failure mode is invisible to every unit test.

@@ -51,5 +51,6 @@ cd resource-backend && python -m pytest -q
 `yarn test:artefacts` is the only check that loads the 3D views from what
 ships. Every other browser spec runs on `yarn dev`, which uses absolute
 backend URLs and unbundled modules -- the copper3d 4.1 upgrade broke both
-builds while all of them passed. It needs the backend on :8082 (and this
-repo's MinIO on :9010 for the My MRI check).
+builds while all of them passed. It needs the backend on :8082 and, for the
+My MRI check, a MinIO with the dataset at the backend's `MINIO_ENDPOINT`
+(`localhost:9000` by default; see README "My MRI" for the port overrides).

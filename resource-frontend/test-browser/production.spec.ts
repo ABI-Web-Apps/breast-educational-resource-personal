@@ -234,8 +234,8 @@ test.describe('§12 acceptance, against the built site', () => {
   /**
    * My MRI's volume goes through the same worker, from its own call site.
    *
-   * Needs the backend to open the patient dataset (this repo's MinIO on :9010
-   * with the SPARC dataset uploaded). When it cannot, the page shows its own
+   * Needs the backend to open the patient dataset (a MinIO at the backend's
+   * MINIO_ENDPOINT with the SPARC dataset uploaded). When it cannot, the page shows its own
    * session error and never mounts the viewer -- that is the environment, not
    * the code under test, so the test skips rather than fails.
    */
@@ -250,7 +250,7 @@ test.describe('§12 acceptance, against the built site', () => {
     const column = page.locator('section', { has: page.getByRole('heading', { name: '3D view' }), hasNot: page.getByRole('heading', { name: 'Report' }) })
     const sessionError = column.locator('[data-state="error"]')
     await expect(viewer.or(sessionError)).toBeVisible({ timeout: 60_000 })
-    test.skip(await sessionError.isVisible(), 'the backend could not open the patient dataset (MinIO on :9010?)')
+    test.skip(await sessionError.isVisible(), 'the backend could not open the patient dataset (is MINIO_ENDPOINT right?)')
 
     // Enabled once the volume has loaded and been placed.
     await expect(page.getByRole('button', { name: 'Reset the 3D view' })).toBeEnabled({ timeout: 120_000 })
