@@ -6,15 +6,18 @@ import type { FindingColour } from '@/content/myMri'
 import { useDocumentTitle } from '@/navigation/head'
 import { providePageRoute } from '@/navigation/router'
 import type { PageRoute } from '@/navigation/routes'
-import { getToolConfig } from '@/myMri/config'
+import { useMyMriSession } from '@/myMri/useMyMriSession'
 
 const props = defineProps<{ route: PageRoute }>()
 providePageRoute(computed(() => props.route))
 
-const cohort = computed(() => getToolConfig().assay_info.cohorts[0] ?? '')
+const session = useMyMriSession()
+const { cohort, status, error, progress, total, reload } = session
 
-// Filled from the dataset's findings once they are loaded; empty until then.
-const findings = computed<FindingColour[]>(() => [])
+const findings = computed<FindingColour[]>(() => session.findings.value)
+const progressText = computed(() => total.value > 0
+  ? `${MY_MRI_COPY.loading} (${progress.value} of ${total.value})`
+  : MY_MRI_COPY.loading)
 const sentence = computed(() => colourSentence(findings.value))
 
 useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
@@ -38,13 +41,35 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
           <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
             {{ MY_MRI_COPY.viewerHeading }}
           </h2>
-          <div data-slot="my-mri-viewer" class="tw:min-h-0 tw:flex-1" />
+          <div class="tw:min-h-0 tw:flex-1">
+            <div v-if="status === 'loading'" data-state="loading" role="status" class="tw:p-4 tw:text-body-sm tw:text-text-muted">
+              {{ progressText }}
+            </div>
+            <div v-else-if="status === 'error'" data-state="error" role="alert" class="tw:flex tw:flex-col tw:items-start tw:gap-3 tw:p-4 tw:text-body-sm tw:text-text">
+              <p>{{ error?.summary }}</p>
+              <button type="button" class="tw:rounded-card tw:border tw:border-border tw:px-3 tw:py-1 tw:font-bold tw:text-text" @click="reload()">
+                {{ MY_MRI_COPY.tryAgain }}
+              </button>
+            </div>
+            <div v-else data-slot="my-mri-viewer" class="tw:h-full" />
+          </div>
         </section>
         <section class="tw:flex tw:min-h-80 tw:xl:min-h-0 tw:flex-col tw:rounded-card tw:border tw:border-border tw:bg-surface-sunken">
           <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
             {{ MY_MRI_COPY.reportHeading }}
           </h2>
-          <div data-slot="my-mri-report" class="tw:min-h-0 tw:flex-1" />
+          <div class="tw:min-h-0 tw:flex-1">
+            <div v-if="status === 'loading'" data-state="loading" role="status" class="tw:p-4 tw:text-body-sm tw:text-text-muted">
+              {{ progressText }}
+            </div>
+            <div v-else-if="status === 'error'" data-state="error" role="alert" class="tw:flex tw:flex-col tw:items-start tw:gap-3 tw:p-4 tw:text-body-sm tw:text-text">
+              <p>{{ error?.summary }}</p>
+              <button type="button" class="tw:rounded-card tw:border tw:border-border tw:px-3 tw:py-1 tw:font-bold tw:text-text" @click="reload()">
+                {{ MY_MRI_COPY.tryAgain }}
+              </button>
+            </div>
+            <div v-else data-slot="my-mri-report" class="tw:h-full" />
+          </div>
         </section>
       </div>
     </template>

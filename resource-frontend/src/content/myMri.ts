@@ -19,6 +19,8 @@ export const MY_MRI_COPY = {
   eyebrow: 'MY MRI',
   title: 'Your MRI scan',
   subline: (cohort: string) => `Patient ${cohort} · contrast phase 1`,
+  loading: 'Loading your scan…',
+  tryAgain: 'Try again',
   viewerHeading: '3D view',
   reportHeading: 'Report',
   panelHeading: 'WHAT YOU\'RE SEEING',

@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MY_MRI_COPY, colourSentence } from '../src/content/myMri'
 import { getToolConfig } from '../src/myMri/config'
 import MyMriPage from '../src/pages/MyMriPage.vue'
@@ -15,10 +15,27 @@ const DefaultLayoutStub = {
     </div>
   `,
 }
+const enc = new TextEncoder()
+const completeStream = () => new Response(new ReadableStream<Uint8Array>({
+  start(c) {
+    c.enqueue(enc.encode(['event: complete', 'data: {"assay":"a-1","cases":["sub-1"]}', '', ''].join('\n')))
+    c.close()
+  },
+}), { status: 200 })
+const jsonRes = (status: number, body: unknown) => new Response(JSON.stringify(body), { status })
+
+/** Route fetch by URL: tool-config streams, findings answers with `findings`. */
+function stubBackend(findings: () => Response, toolConfig: () => Response = completeStream) {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+    url.includes('tool-config') ? toolConfig() : findings()))
+}
+const noFindings = () => jsonRes(404, { detail: { code: 'no_findings', summary: 'none' } })
+afterEach(() => { vi.unstubAllGlobals() })
+
 const route: PageRoute = { path: '/my-mri', name: 'my-mri', params: {} }
 
 describe('MyMriPage', () => {
-  beforeEach(() => { setActivePinia(createPinia()) })
+  beforeEach(() => { setActivePinia(createPinia()); stubBackend(noFindings) })
   const mountPage = () => mount(MyMriPage, {
     props: { route },
     global: { stubs: { DefaultLayout: DefaultLayoutStub } },
@@ -48,6 +65,49 @@ describe('MyMriPage', () => {
   })
 })
 
+describe('MyMriPage session states', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+  const mountPage = () => mount(MyMriPage, {
+    props: { route },
+    global: { stubs: { DefaultLayout: DefaultLayoutStub } },
+  })
+
+  it('shows loading text in both columns, then the placeholders when ready', async () => {
+    stubBackend(noFindings)
+    const wrapper = mountPage()
+    expect(wrapper.findAll('[data-state="loading"]')).toHaveLength(2)
+    expect(wrapper.text()).toContain('Loading your scan')
+    await flushPromises()
+    expect(wrapper.find('[data-state]').exists()).toBe(false)
+    expect(wrapper.find('[data-slot="my-mri-viewer"]').exists()).toBe(true)
+    expect(wrapper.find('[data-slot="my-mri-report"]').exists()).toBe(true)
+  })
+
+  it('shows the backend summary and a Try again button on error, and retries', async () => {
+    let attempt = 0
+    stubBackend(noFindings, () => (attempt++ === 0
+      ? jsonRes(400, { detail: { step: 'minio', summary: 'Dataset missing', detail: 'x' } })
+      : completeStream()))
+    const wrapper = mountPage()
+    await flushPromises()
+    expect(wrapper.findAll('[data-state="error"]')).toHaveLength(2)
+    expect(wrapper.text()).toContain('Dataset missing')
+    await wrapper.findAll('button').find(b => b.text() === 'Try again')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-state]').exists()).toBe(false)
+  })
+
+  it('shows the colour sentence once findings are loaded', async () => {
+    stubBackend(() => jsonRes(200, { findings: [
+      { label: 'Finding 1', lesion: { channel: 1, color: '#ff7043' } },
+      { label: 'Finding 2', lesion: { channel: 2, color: '#42a5f5' } },
+    ] }))
+    const wrapper = mountPage()
+    await flushPromises()
+    expect(wrapper.get('.content-slot').text()).toContain('orange is Finding 1, blue is Finding 2')
+  })
+})
+
 describe('config and copy', () => {
   it('bundles the tool config', () => {
     expect(getToolConfig().assay_info.cohorts[0]).toBe('sub-1')
@@ -64,7 +124,7 @@ describe('config and copy', () => {
 })
 
 describe('MyMriPage inside the real layout', () => {
-  beforeEach(() => { setActivePinia(createPinia()) })
+  beforeEach(() => { setActivePinia(createPinia()); stubBackend(noFindings) })
 
   it('puts heading, stage columns and panel copy in their slots, with a non-square stage', () => {
     const wrapper = mount(MyMriPage, {
