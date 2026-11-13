@@ -37,7 +37,7 @@ from pydantic import BaseModel, Field, model_validator
 SCHEMA_VERSION = 3
 
 # Contrast phases in acquisition order. `tests/test_findings_schema.py` asserts that every
-# contrast input in `Config.INPUTS` is one of them.
+# contrast or registered-contrast input in `Config.INPUTS` is one of them.
 CONTRAST_PHASES = (
     "contrast_pre",
     "contrast_1",

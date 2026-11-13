@@ -12,7 +12,7 @@ and behind the portal's /plugin/<expose>/ location, which strips its prefix):
     GET /api/health                 liveness, for compose and the portal
     GET /api/modelView/<path>       the catalogue, read-only
     POST /api/tool-config           validate a tool config, resolve its dataset (SSE)
-    GET /api/patients/<assay>/<cohort>/mri       contrast-1 volume, gzip-encoded NRRD
+    GET /api/patients/<assay>/<cohort>/mri       registration-1 volume, gzip-encoded NRRD
     GET /api/patients/<assay>/<cohort>/findings  the findings record
     GET /api/patients/<assay>/<cohort>/mask.glb  the mask as one coloured mesh per label
     GET /api/patients/<assay>/<cohort>/report.pdf?tz=<IANA>  the findings report PDF

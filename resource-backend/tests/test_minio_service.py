@@ -101,9 +101,9 @@ def test_validate_base_url_rejects_non_http():
 
 def test_routes_map_each_declared_type_to_its_dataset():
     routes = build_sample_type_routes(
-        [_spec("a", "contrast_1_nrrd"), _spec("b", "findings_json")], KNOWN
+        [_spec("a", "registration_1_nrrd"), _spec("b", "findings_json")], KNOWN
     )
-    assert routes == {"contrast_1_nrrd": "a", "findings_json": "b"}
+    assert routes == {"registration_1_nrrd": "a", "findings_json": "b"}
 
 
 def test_routes_reject_unknown_sample_type():
@@ -111,7 +111,7 @@ def test_routes_reject_unknown_sample_type():
         build_sample_type_routes([_spec("workdir", "contrast_one_nrrd")], KNOWN)
     assert exc.value.step == "config"
     assert "contrast_one_nrrd" in exc.value.summary
-    assert "contrast_1_nrrd" in exc.value.detail
+    assert "registration_1_nrrd" in exc.value.detail
 
 
 def test_routes_reject_type_claimed_twice():
@@ -131,7 +131,7 @@ def test_resolves_by_sample_type_not_filename(fake_minio):
     r = svc.validate_and_resolve_inputs(
         BASE, [_spec("workdir", *Config.INPUTS)], ["sub-1"], _routes()
     )
-    assert r["sub-1"]["contrast_1_nrrd"].endswith("/workdir/primary/sub-1/sam-1/c1.nrrd")
+    assert r["sub-1"]["registration_1_nrrd"].endswith("/workdir/primary/sub-1/sam-1/c1.nrrd")
     assert r["sub-1"]["researcher_manual_LPS_nii"].endswith("/workdir/primary/sub-1/sam-2/m.nii.gz")
     assert r["sub-1"]["findings_json"].endswith("/workdir/primary/sub-1/sam-3/f.json")
     assert svc.read_object_bytes(r["sub-1"]["findings_json"])
@@ -142,13 +142,13 @@ def test_missing_optional_input_is_none(fake_minio):
         BASE, [_spec("workdir", *Config.INPUTS)], ["sub-2"], _routes()
     )
     assert r["sub-2"]["findings_json"] is None
-    assert r["sub-2"]["contrast_1_nrrd"] is not None
+    assert r["sub-2"]["registration_1_nrrd"] is not None
 
 
 def test_unrouted_input_is_none(fake_minio):
-    routes = build_sample_type_routes([_spec("workdir", "contrast_1_nrrd")], Config.INPUTS)
+    routes = build_sample_type_routes([_spec("workdir", "registration_1_nrrd")], Config.INPUTS)
     r = MinIOService(fake_minio).validate_and_resolve_inputs(
-        BASE, [_spec("workdir", "contrast_1_nrrd")], ["sub-1"], routes
+        BASE, [_spec("workdir", "registration_1_nrrd")], ["sub-1"], routes
     )
     assert r["sub-1"]["findings_json"] is None
 

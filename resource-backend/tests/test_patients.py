@@ -125,6 +125,14 @@ def test_findings_absent_404(loaded_client):
     assert r.status_code == 404 and r.json()["detail"]["code"] == "no_findings"
 
 
+def test_findings_that_exist_but_fail_to_download_are_503(loaded_client, monkeypatch):
+    from app.services.minio_service import MinIOService
+
+    monkeypatch.setattr(MinIOService, "read_object_bytes", lambda self, url: None)
+    r = loaded_client.get("/api/patients/assay-001/sub-1/findings")
+    assert r.status_code == 503 and r.json()["detail"]["code"] == "input_unreadable"
+
+
 def test_findings_that_break_the_schema_are_422(loaded_client, sparc_dataset):
     (sparc_dataset / "primary" / "sub-1" / "sam-3" / "f.json").write_text('{"findings": "nope"}')
     r = loaded_client.get("/api/patients/assay-001/sub-1/findings")

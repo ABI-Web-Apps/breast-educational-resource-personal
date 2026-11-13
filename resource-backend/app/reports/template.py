@@ -17,13 +17,12 @@ from app.reports.svg import clock_svg, kinetics_svg
 
 EM_DASH = "—"
 
-# Which mask each lesion was measured on. Clinically load-bearing: a distance taken from
-# the model's prediction is not the same claim as one taken from the clinician's own mask.
-LAYER_LABELS = {
-    "layer1": "Model predicted",
-    "layer2": "Researcher manual",
-    "layer3": "Clinician validated",
-}
+# Which mask each lesion was measured on. Clinically load-bearing: a size taken from the
+# model's prediction is not the same claim as one taken from the clinician's own mask. Every
+# size and slice image in this report comes from one mask, the Clinician Layer
+# (researcher_manual_LPS_nii), whichever layer the record anchors a finding to, so every card
+# names that mask rather than the record's layer.
+MASK_LABEL = "Clinician layer"
 
 # Drives the assessment hero's colour. Benign runs cool, malignant runs warm.
 CATEGORY_TONE = {
@@ -39,6 +38,7 @@ CATEGORY_TONE = {
 PRODUCT = "Breast Educational Resource"
 
 DISCLAIMER = "Research use. Not for primary diagnostic interpretation."
+
 
 def _acr_rows(section, values):
     """One section's rows, INCLUDING unfilled ones -- the report prints the whole form.
@@ -248,7 +248,7 @@ def _finding_context(finding, zone, anatomical_withheld=""):
     return {
         "id": finding.id,
         "label": finding.label,
-        "layer": LAYER_LABELS.get(finding.lesion.layer_id, finding.lesion.layer_id),
+        "layer": MASK_LABEL,
         "channel": finding.lesion.channel,
         "color": finding.lesion.color or "#94a3b8",
         # --- Findings: size, then location. The client's order, matching the panel. ---

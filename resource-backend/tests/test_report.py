@@ -53,6 +53,15 @@ def test_report_html_two_findings(loaded_service):
     assert html.count("data:image/png;base64,") == 2
 
 
+def test_every_card_names_the_clinician_layer(loaded_service):
+    # The record anchors sub-1's findings to layer1 ("Model predicted" in the validator), but
+    # the sizes and outlines printed beside it come from the Clinician Layer mask.
+    assert loaded_service.findings.findings[0].lesion.layer_id == "layer1"
+    html = build_report_html("sub-1", *loaded_service, timezone.utc)
+    assert "Model predicted" not in html
+    assert html.count("Clinician layer · channel") == 2
+
+
 def test_report_html_names_the_cohort_and_no_reader(loaded_service):
     html = build_report_html("sub-1", *loaded_service, timezone.utc)
     assert '<h1 class="case-name">sub-1</h1>' in html
@@ -112,8 +121,8 @@ def test_the_case_is_the_cohort(loaded_service):
 def test_lesion_images_are_captioned_with_their_axial_slice(loaded_service):
     images = prepare_report("sub-1", *loaded_service).lesion_images
     # Label 1 spans k = 1..2, whose centre of mass (1.5) rounds half up to 2; label 2 sits at k = 4.
-    assert images["f_1"]["caption"] == "Contrast phase 1 - axial slice 2"
-    assert images["f_2"]["caption"] == "Contrast phase 1 - axial slice 4"
+    assert images["f_1"]["caption"] == "Contrast phase 1, registered - axial slice 2"
+    assert images["f_2"]["caption"] == "Contrast phase 1, registered - axial slice 4"
     assert images["f_1"]["uri"].startswith("data:image/png;base64,")
 
 
@@ -130,10 +139,8 @@ def test_lesion_image_grid_mismatch_reason(loaded_service):
     other_grid = _nii_bytes(mask, spacing=(1.0, 1.0, 1.5))
     parts = prepare_report("sub-1", loaded_service.findings, loaded_service.volume, other_grid)
     for finding_id in ("f_1", "f_2"):
-        # Names what differs; the numbers go to the log, not onto the page.
-        assert parts.lesion_images[finding_id] == {
-            "reason": "the mask and the image are not on the same grid (their spacing differs)"
-        }
+        # Plain words on the page; the numbers go to the log.
+        assert parts.lesion_images[finding_id] == {"reason": "the outline and the image are not on the same grid"}
     # The sizes still come from the mask, on its own grid.
     assert parts.findings.findings[0].size.max_linear_mm.value == 3.0
 
@@ -147,10 +154,36 @@ def test_an_unreadable_mask_gives_reasons_and_no_sizes(loaded_service):
     assert all(f.size == schema.Size() for f in parts.findings.findings)
 
 
+def test_an_absent_mask_says_none_was_delivered(loaded_service):
+    parts = prepare_report("sub-1", loaded_service.findings, loaded_service.volume, None)
+    assert parts.lesion_images["f_1"] == {"reason": "no mask was delivered for this scan"}
+    assert all(f.size == schema.Size() for f in parts.findings.findings)
+
+
 def test_an_unreadable_series_gives_reasons_but_keeps_the_sizes(loaded_service):
-    parts = prepare_report("sub-1", loaded_service.findings, None, loaded_service.mask)
-    assert parts.lesion_images["f_1"] == {"reason": "the background series could not be read"}
+    parts = prepare_report("sub-1", loaded_service.findings, b"not a volume", loaded_service.mask)
+    assert parts.lesion_images["f_1"] == {"reason": "the post-contrast series could not be read"}
     assert parts.findings.findings[0].size.max_linear_mm.value == 3.0
+
+
+def test_an_absent_series_says_the_scan_has_none(loaded_service):
+    parts = prepare_report("sub-1", loaded_service.findings, None, loaded_service.mask)
+    assert parts.lesion_images["f_1"] == {"reason": "this scan has no post-contrast series"}
+    assert parts.findings.findings[0].size.max_linear_mm.value == 3.0
+
+
+def test_one_failing_image_costs_only_that_image(loaded_service, monkeypatch):
+    real = report.render_slice_png
+
+    def fails_on_channel_2(volume, mask, channel, *args, **kwargs):
+        if channel == 2:
+            raise RuntimeError("drawing failed")
+        return real(volume, mask, channel, *args, **kwargs)
+
+    monkeypatch.setattr(report, "render_slice_png", fails_on_channel_2)
+    html = build_report_html("sub-1", *loaded_service, timezone.utc)
+    assert html.count("data:image/png;base64,") == 1
+    assert "No slice image - the slice image could not be built." in html
 
 
 def test_an_invalid_colour_is_outlined_in_the_neutral_colour(loaded_service):
@@ -181,7 +214,27 @@ def test_report_for_an_assay_not_loaded_409(client, cache_dir):
     assert response.json()["detail"]["code"] == "assay_not_loaded"
 
 
-def test_report_unavailable_503(loaded_client, cache_dir, monkeypatch):
+@pytest.fixture()
+def downloads(monkeypatch):
+    """Every object URL the route downloads, in order."""
+    from app.services.minio_service import MinIOService
+
+    urls = []
+    real_read = MinIOService.read_object_bytes
+
+    def read(self, url):
+        urls.append(url)
+        return real_read(self, url)
+
+    monkeypatch.setattr(MinIOService, "read_object_bytes", read)
+    return urls
+
+
+def _volumes(urls):
+    return [u for u in urls if u.endswith((".nrrd", ".nii.gz"))]
+
+
+def test_report_unavailable_503(loaded_client, cache_dir, monkeypatch, downloads):
     monkeypatch.setitem(sys.modules, "weasyprint", None)
     response = loaded_client.get(URL.format("sub-1"))
     assert response.status_code == 503
@@ -189,19 +242,31 @@ def test_report_unavailable_503(loaded_client, cache_dir, monkeypatch):
         "code": "report_unavailable",
         "summary": "Report rendering needs the Docker backend.",
     }
+    # Refused before any volume is downloaded.
+    assert _volumes(downloads) == []
+
+
+class _Renders(list):
+    """The zone of each render; `inputs` holds each render's (volume, mask) bytes."""
+
+    def __init__(self):
+        super().__init__()
+        self.inputs = []
 
 
 @pytest.fixture()
 def fake_render(monkeypatch):
-    """Replaces the PDF renderer with one that records the zone of each render."""
-    zones = []
+    """Replaces the PDF renderer, and the WeasyPrint check, with stand-ins that record each render."""
+    renders = _Renders()
 
     def render(cohort, findings, volume, mask, zone):
-        zones.append(zone)
-        return b"%PDF-fake " + str(len(zones)).encode()
+        renders.append(zone)
+        renders.inputs.append((volume, mask))
+        return b"%PDF-fake " + str(len(renders)).encode()
 
+    monkeypatch.setattr(report, "require_weasyprint", lambda: None)
     monkeypatch.setattr(report, "build_report_pdf", render)
-    return zones
+    return renders
 
 
 def test_report_response_headers(loaded_client, cache_dir, fake_render):
@@ -261,6 +326,29 @@ def test_a_failed_download_is_not_cached(loaded_client, cache_dir, fake_render, 
     assert len(fake_render) == 1
 
 
+def test_without_a_mask_the_volume_is_not_downloaded(loaded_client, cache_dir, fake_render, sparc_dataset, downloads):
+    (sparc_dataset / "primary" / "sub-1" / "sam-2" / "m.nii.gz").unlink()
+    assert loaded_client.get(URL.format("sub-1")).status_code == 200
+    assert _volumes(downloads) == []
+    assert fake_render.inputs == [(None, None)]
+
+
+def test_a_findings_download_failure_is_503_and_not_cached(loaded_client, cache_dir, fake_render, monkeypatch):
+    from app.services.minio_service import MinIOService
+
+    real_read = MinIOService.read_object_bytes
+    monkeypatch.setattr(
+        MinIOService, "read_object_bytes", lambda self, url: None if url.endswith(".json") else real_read(self, url)
+    )
+    response = loaded_client.get(URL.format("sub-1"))
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "input_unreadable"
+
+    monkeypatch.setattr(MinIOService, "read_object_bytes", real_read)
+    assert loaded_client.get(URL.format("sub-1")).status_code == 200
+    assert len(fake_render) == 1
+
+
 def test_a_changed_report_template_is_rendered_again(loaded_client, cache_dir, fake_render, monkeypatch):
     loaded_client.get(URL.format("sub-1"))
     monkeypatch.setattr(report, "report_version", lambda: "changed")
@@ -272,7 +360,10 @@ def test_report_version_follows_the_template_sources():
     version = report.report_version()
     assert version and version == report.report_version()
     sources = {path.name for path in report.version_sources()}
-    assert {"report.html", "report.css", "acr_form_table.json", "template.py", "report.py"} <= sources
+    assert {
+        "report.html", "report.css", "acr_form_table.json", "template.py", "report.py",
+        "canonical.py", "volume_reader.py",
+    } <= sources
 
 
 @pytest.mark.skipif(not weasyprint_available(), reason="WeasyPrint needs GTK; runs in Docker")

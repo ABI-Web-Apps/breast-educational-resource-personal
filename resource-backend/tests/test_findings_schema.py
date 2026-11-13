@@ -45,7 +45,12 @@ def _finding(**overrides):
 
 
 def test_config_contrast_inputs_are_known_phases():
-    used = [name[: -len("_nrrd")] for name in Config.INPUTS if name.startswith("contrast_")]
+    # A registered series is its contrast phase after registration: registration_1 is contrast_1.
+    used = [
+        "contrast_" + name[: -len("_nrrd")].split("_", 1)[1]
+        for name in Config.INPUTS
+        if name.endswith("_nrrd") and name.startswith(("contrast_", "registration_"))
+    ]
     assert used and all(phase in CONTRAST_PHASES for phase in used)
 
 

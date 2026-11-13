@@ -3,12 +3,13 @@ with the anatomical names given only to an axis-aligned grid."""
 
 import math
 
+import nibabel as nib
 import numpy as np
 import pytest
 
 from app.geometry import canonical
 from app.reports import schema
-from app.reports.sizes import anatomical_withheld, compute_sizes, is_axis_aligned
+from app.reports.sizes import anatomical_withheld, compute_sizes, is_axis_aligned, round_tenth
 from app.services.volume_reader import read_canonical
 from tests.conftest import GRID, ORIGIN_LPS, SPACING
 
@@ -114,3 +115,49 @@ def test_sizes_from_the_fixture_mask_file(loaded_service):
     assert s.max_linear_mm.value == 3.0
     assert s.volume_mm3.value == 21.1
     assert s.craniocaudal_mm.value == 3.0
+
+
+# --- Rounding: the validator's Math.round(v * 10) / 10, a half rounded up --------------
+
+
+@pytest.mark.parametrize("value,expected", [(1.25, 1.3), (2.65, 2.7), (2 * 0.625, 1.3), (1.24, 1.2), (3.0, 3.0)])
+def test_a_half_tenth_rounds_up_as_the_validator_does(value, expected):
+    # Python's round() gives 1.2 for 1.25 and 2.6 for 2.65.
+    assert round_tenth(value) == expected
+
+
+def test_sizes_round_a_half_tenth_up():
+    mask = np.zeros(GRID, dtype=np.uint8)
+    mask[0:2, 0:1, 0:1] = 1  # 2 voxels along x
+    grid = _grid(np.diag([0.625, 0.885, 1.5]))
+    assert compute_sizes(mask, grid, [1])[1].transverse_mm.value == 1.3
+
+
+# --- A file stored in another voxel order ----------------------------------------------
+
+
+def test_sizes_follow_the_canonical_axes_whatever_order_the_file_stores():
+    """A NIfTI whose voxels run S, R, P (axes permuted, one flipped) on the same LPS grid
+    measures as the canonical mask does: the extents are named after the patient's axes, not
+    the file's."""
+    spacing = (0.8, 1.0, 2.0)  # L, P, S: all different, so a swapped axis cannot pass
+    canonical_mask = np.zeros(GRID, dtype=np.uint8)
+    canonical_mask[1:3, 2:6, 1:4] = 1  # 2 x 4 x 3 voxels along L, P, S
+
+    # Native axis 0 runs S, axis 1 runs R (L flipped), axis 2 runs P.
+    native = canonical_mask.transpose(2, 0, 1)[:, ::-1, :].copy()
+    directions_lps = np.array([[0.0, 0.0, spacing[2]], [-spacing[0], 0.0, 0.0], [0.0, spacing[1], 0.0]])
+    origin_lps = np.array(ORIGIN_LPS) + (GRID[0] - 1) * np.array([spacing[0], 0.0, 0.0])
+    affine = np.eye(4)
+    affine[:3, :3] = (directions_lps * np.array([-1.0, -1.0, 1.0])).T  # columns, in RAS
+    affine[:3, 3] = origin_lps * np.array([-1.0, -1.0, 1.0])
+    raw = nib.Nifti1Image.to_bytes(nib.Nifti1Image(native, affine))
+
+    mask, grid = read_canonical(raw, "permuted.nii.gz")
+    assert np.array_equal(mask, canonical_mask)
+    s = compute_sizes(mask, grid, [1])[1]
+    assert s.transverse_mm.value == 1.6
+    assert s.ap_mm.value == 4.0
+    assert s.craniocaudal_mm.value == 6.0
+    assert s.max_linear_mm.value == 6.0
+    assert s.volume_mm3.value == round_tenth(24 * 0.8 * 1.0 * 2.0)

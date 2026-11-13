@@ -18,10 +18,10 @@ ORIGIN_LPS = (-175.5, -159.9, -84.4)
 # (subject, sample id, sample type, file name). File names deliberately do not
 # match the sample type: the dataset is read through samples.xlsx, not by name.
 _SAMPLES = [
-    ("sub-1", "sam-1", "contrast_1_nrrd", "c1.nrrd"),
+    ("sub-1", "sam-1", "registration_1_nrrd", "c1.nrrd"),
     ("sub-1", "sam-2", "researcher_manual_LPS_nii", "m.nii.gz"),
     ("sub-1", "sam-3", "findings_json", "f.json"),
-    ("sub-2", "sam-1", "contrast_1_nrrd", "c1.nrrd"),
+    ("sub-2", "sam-1", "registration_1_nrrd", "c1.nrrd"),
     ("sub-2", "sam-2", "researcher_manual_LPS_nii", "m.nii.gz"),
 ]
 
@@ -102,7 +102,7 @@ def sparc_dataset(tmp_path) -> Path:
         folder = root / "primary" / subject / sample
         folder.mkdir(parents=True)
         path = folder / name
-        if sample_type == "contrast_1_nrrd":
+        if sample_type == "registration_1_nrrd":
             _write_nrrd(path)
         elif sample_type == "researcher_manual_LPS_nii":
             _write_mask(path)
@@ -191,7 +191,7 @@ TOOL_CONFIG = {
         "datasets": [
             {
                 "name": "workdir",
-                "sample_type": ["contrast_1_nrrd", "researcher_manual_LPS_nii", "findings_json"],
+                "sample_type": ["registration_1_nrrd", "researcher_manual_LPS_nii", "findings_json"],
             }
         ],
     },
@@ -275,7 +275,7 @@ class ReportInputs(NamedTuple):
 
 @pytest.fixture()
 def loaded_service(fake_minio) -> ReportInputs:
-    """sub-1's parsed findings plus its contrast-1 volume and mask bytes, read through
+    """sub-1's parsed findings plus its registration-1 volume and mask bytes, read through
     `fake_minio` the way the report route reads them. Unpacks straight into
     `build_report_html("sub-1", *loaded_service, zone)`."""
     from app.reports import schema

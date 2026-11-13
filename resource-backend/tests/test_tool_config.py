@@ -23,10 +23,10 @@ def test_tool_config_streams_resolved_then_complete(client, tool_config):
     resolved = [d for e, d in events if e == "resolved"]
     assert resolved[0] == {
         "case": "sub-1",
-        "inputs": {"contrast_1_nrrd": True, "researcher_manual_LPS_nii": True, "findings_json": True},
+        "inputs": {"registration_1_nrrd": True, "researcher_manual_LPS_nii": True, "findings_json": True},
     }
     assert events[-1][1] == {"assay": "assay-001", "cases": ["sub-1"]}
-    assert registry.get("assay-001").cohorts["sub-1"]["contrast_1_nrrd"]
+    assert registry.get("assay-001").cohorts["sub-1"]["registration_1_nrrd"]
 
 
 def test_tool_config_repost_replaces_registry_entry(client, tool_config):

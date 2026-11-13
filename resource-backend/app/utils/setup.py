@@ -12,9 +12,11 @@ class Config:
     SUBJECTS_METADATA_PATH = "subjects.xlsx"
 
     # Resolved by NAME from each dataset's samples.xlsx "Sample Type" column, so
-    # the list has no index semantics.
+    # the list has no index semantics. The series shown is registration_1, contrast
+    # phase 1 after registration: the Clinician Layer mask lies on its grid, not on
+    # raw contrast_1's, whose header differs by 0.6-1.8 mm across the volume.
     INPUTS = [
-        "contrast_1_nrrd",
+        "registration_1_nrrd",
         "researcher_manual_LPS_nii",
         "findings_json",
     ]

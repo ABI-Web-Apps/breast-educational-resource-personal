@@ -182,11 +182,19 @@ def test_assessed_breast_tissue_carries_its_definition():
 # --- Findings -----------------------------------------------------------------
 
 
-def test_each_finding_names_the_layer_it_was_measured_on():
+def test_each_finding_names_the_mask_it_was_measured_on():
     ctx = _context()
-    assert ctx["findings"][0]["layer"] == "Clinician validated"
+    assert ctx["findings"][0]["layer"] == "Clinician layer"
     assert ctx["findings"][0]["channel"] == 1
     assert ctx["findings"][1]["channel"] == 2
+
+
+@pytest.mark.parametrize("layer_id", ["layer1", "layer2", "layer3", "findings1"])
+def test_every_layer_prints_as_the_clinician_layer(layer_id):
+    # Sizes and outlines come from the Clinician Layer mask whatever layer the record names,
+    # so "Model predicted" for layer1 would misstate where they were measured.
+    findings = Findings(findings=[Finding(id="f_1", label="Finding 1", lesion=Lesion(layer_id=layer_id, channel=1))])
+    assert _context(findings)["findings"][0]["layer"] == "Clinician layer"
 
 
 def test_kinetics_rows_carry_the_acr_definitions():

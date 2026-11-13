@@ -11,11 +11,13 @@ rounded and stamped in `store/findingsStore.ts`); this is the same algorithm on 
   resamples, so on a tilted grid an extent along a voxel axis is not an anatomical extent, and
   printing one as "AP 2.4 mm" would be a fabricated measurement.
 
-Every value is rounded to 0.1 and stamped `source="computed"` with no time: nothing here can
+Every value is rounded to 0.1 half up, as the validator's `Math.round(v * 10) / 10` does (Python's
+`round` would send 1.25 to 1.2), and stamped `source="computed"` with no time: nothing here can
 honestly say when the mask was drawn.
 
 numpy only, so it runs on a bare host.
 """
+import math
 from typing import Iterable
 
 import numpy as np
@@ -68,8 +70,14 @@ def anatomical_withheld(geometry: canonical.Geometry) -> str:
     )
 
 
+def round_tenth(value: float) -> float:
+    """`value` to one decimal, a half rounded up: JS `Math.round(value * 10) / 10`, which the
+    validator uses, so this report and the validator print the same tenth."""
+    return math.floor(float(value) * 10 + 0.5) / 10
+
+
 def _measured(value: float) -> schema.Measurement:
-    return schema.Measurement(value=round(float(value), 1), source="computed", recorded_at=None)
+    return schema.Measurement(value=round_tenth(value), source="computed", recorded_at=None)
 
 
 def compute_sizes(

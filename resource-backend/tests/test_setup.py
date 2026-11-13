@@ -2,7 +2,7 @@ from app.utils.setup import BACKEND_ROOT, Config
 
 
 def test_inputs_are_the_three_sample_types():
-    assert Config.INPUTS == ["contrast_1_nrrd", "researcher_manual_LPS_nii", "findings_json"]
+    assert Config.INPUTS == ["registration_1_nrrd", "researcher_manual_LPS_nii", "findings_json"]
 
 
 def test_outputs_are_empty():

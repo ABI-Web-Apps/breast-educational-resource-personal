@@ -1,5 +1,5 @@
-"""Per-patient reads: the contrast-1 MRI volume, the findings record, the mask mesh and the
-report PDF."""
+"""Per-patient reads: the MRI volume (contrast phase 1, registered), the findings record, the
+mask mesh and the report PDF."""
 
 import gzip
 import logging
@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-MRI_SAMPLE_TYPE = "contrast_1_nrrd"
+#: Contrast phase 1 after registration: the series the Clinician Layer mask was drawn on.
+MRI_SAMPLE_TYPE = "registration_1_nrrd"
 FINDINGS_SAMPLE_TYPE = "findings_json"
 MASK_SAMPLE_TYPE = "researcher_manual_LPS_nii"
 
@@ -117,17 +118,28 @@ def get_mri(assay_uuid: str, cohort: str, service: MinIOService = Depends(get_mi
     return Response(content=_encoded_mri(service, url), media_type="application/octet-stream")
 
 
-@router.get("/api/patients/{assay_uuid}/{cohort}/findings")
-def get_findings(assay_uuid: str, cohort: str, service: MinIOService = Depends(get_minio_service)):
-    url = resolved_input(assay_uuid, cohort, FINDINGS_SAMPLE_TYPE)
+def _load_findings(service: MinIOService, url: str | None, cohort: str) -> schema.Findings:
+    """The cohort's findings record, parsed.
+
+    404 `no_findings` when the cohort has none; 503 `input_unreadable` when it exists but could
+    not be downloaded, which is transient, so nothing built from it may be cached; 422
+    `invalid_findings` when it does not match the schema.
+    """
     raw = service.read_object_bytes(url) if url else None
     if raw is None:
+        if url and _identity_or_none(service, url) is not None:
+            raise _error(503, "input_unreadable", "The findings record could not be read; try again.")
         raise _error(404, "no_findings", f"Cohort {cohort} has no findings record.")
     try:
-        record = schema.loads(raw)
+        return schema.loads(raw)
     except ValidationError as e:
         logger.warning("findings for %s do not match the schema: %s", cohort, e)
         raise _error(422, "invalid_findings", "The findings record does not match the expected schema.")
+
+
+@router.get("/api/patients/{assay_uuid}/{cohort}/findings")
+def get_findings(assay_uuid: str, cohort: str, service: MinIOService = Depends(get_minio_service)):
+    record = _load_findings(service, resolved_input(assay_uuid, cohort, FINDINGS_SAMPLE_TYPE), cohort)
     return Response(content=schema.dumps(record), media_type="application/json")
 
 
@@ -215,27 +227,29 @@ def get_report_pdf(
         report.report_version(),
     ])
 
+    def unavailable(e: report.ReportUnavailable) -> HTTPException:
+        logger.warning("no report for %s: %s", cohort, e)
+        return _error(503, "report_unavailable", "Report rendering needs the Docker backend.")
+
     def build() -> bytes:
-        raw = service.read_object_bytes(findings_url)
-        if raw is None:
-            raise _error(404, "no_findings", f"Cohort {cohort} has no findings record.")
+        # Before any download: on a host without WeasyPrint the volumes would be read for nothing.
         try:
-            record = schema.loads(raw)
-        except ValidationError as e:
-            logger.warning("findings for %s do not match the schema: %s", cohort, e)
-            raise _error(422, "invalid_findings", "The findings record does not match the expected schema.")
+            report.require_weasyprint()
+        except report.ReportUnavailable as e:
+            raise unavailable(e) from e
+        record = _load_findings(service, findings_url, cohort)
         # An input absent from the dataset renders as a reason in the report. One that exists
         # but fails to download is transient: refusing it keeps a degraded PDF out of a cache
-        # entry keyed on that object's identity, where it would otherwise stay.
-        volume = service.read_object_bytes(volume_url) if volume_identity else None
+        # entry keyed on that object's identity, where it would otherwise stay. Without a mask
+        # there is nothing to outline, so the volume is not downloaded at all.
         mask = service.read_object_bytes(mask_url) if mask_identity else None
-        if (volume_identity and volume is None) or (mask_identity and mask is None):
+        volume = service.read_object_bytes(volume_url) if volume_identity and mask is not None else None
+        if (mask_identity and mask is None) or (mask is not None and volume_identity and volume is None):
             raise _error(503, "input_unreadable", "An imaging input could not be read; try again.")
         try:
             return report.build_report_pdf(cohort, record, volume, mask, zone)
         except report.ReportUnavailable as e:
-            logger.warning("no report for %s: %s", cohort, e)
-            raise _error(503, "report_unavailable", "Report rendering needs the Docker backend.") from e
+            raise unavailable(e) from e
 
     path = DerivedCache(Config.CACHE_DIR).get_or_build(key, ".pdf", build)
     filename = f"{_UNSAFE_FILENAME.sub('_', cohort)}-mri-report.pdf"
