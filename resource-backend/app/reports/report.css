@@ -1,0 +1,744 @@
+/* Report stylesheet — clinical white with a narrow brand band.
+ *
+ * Print, not screen. Everything is sized in mm/pt, the palette assumes ink on white, and
+ * nothing depends on a colour to carry meaning on its own — every toned element also
+ * states its value in words.
+ *
+ * Fonts come from the image (fonts-liberation2, fonts-dejavu-core installed by the
+ * Dockerfile). WeasyPrint cannot fetch remote fonts and the slim base image ships almost
+ * none, so the families named here must exist locally or every glyph becomes a box.
+ */
+
+:root {
+  --ink: #0f172a;
+  --body: #334155;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --line: #e2e8f0;
+  --hairline: #f1f5f9;
+  --brand: #1769ff;
+  --brand-2: #06b6d4;
+}
+
+@page {
+  size: A4;
+  margin: 14mm 14mm 16mm;
+
+  @bottom-left {
+    content: string(footerleft);
+    font-family: "Liberation Sans", "DejaVu Sans", sans-serif;
+    font-size: 6.5pt;
+    color: #94a3b8;
+    padding-top: 2mm;
+    border-top: 0.4pt solid #e2e8f0;
+    vertical-align: top;
+    width: 100%;
+  }
+
+  @bottom-center {
+    content: string(footercenter);
+    font-family: "Liberation Sans", "DejaVu Sans", sans-serif;
+    font-size: 6.5pt;
+    font-style: italic;
+    color: #94a3b8;
+    padding-top: 2mm;
+    border-top: 0.4pt solid #e2e8f0;
+    vertical-align: top;
+    width: 100%;
+  }
+
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: "Liberation Sans", "DejaVu Sans", sans-serif;
+    font-size: 6.5pt;
+    color: #94a3b8;
+    padding-top: 2mm;
+    border-top: 0.4pt solid #e2e8f0;
+    vertical-align: top;
+    text-align: right;
+    width: 100%;
+  }
+}
+
+body {
+  font-family: "Liberation Sans", "DejaVu Sans", sans-serif;
+  font-size: 8.5pt;
+  line-height: 1.45;
+  color: var(--body);
+  /* Tabular figures everywhere, so every column of numbers lines up. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Carriers for the running footer. Rendered nowhere; read by the margin boxes. */
+.footer-left {
+  string-set: footerleft content();
+}
+.footer-center {
+  string-set: footercenter content();
+}
+.footer-left,
+.footer-center {
+  height: 0;
+  overflow: hidden;
+  font-size: 0;
+}
+
+/* ---------- Masthead ---------------------------------------------------- */
+/* Negative margins pull the band out to the paper edge on page one. */
+
+.masthead {
+  margin: -14mm -14mm 7mm;
+}
+
+.brandband {
+  height: 6mm;
+  background: linear-gradient(90deg, var(--brand-2) 0%, var(--brand) 62%, #4c1d95 100%);
+}
+
+.masthead-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 3.5mm 14mm 0;
+}
+
+.wordmark {
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.doctype {
+  font-size: 7pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- Title block ------------------------------------------------- */
+
+.case-name {
+  font-family: "Liberation Serif", "DejaVu Serif", Georgia, serif;
+  font-size: 20pt;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 0 0 3mm;
+}
+
+.meta-grid {
+  display: flex;
+  gap: 0;
+  border-top: 0.6pt solid var(--line);
+  border-bottom: 0.6pt solid var(--line);
+  padding: 2mm 0;
+  margin-bottom: 6mm;
+}
+
+.meta-cell {
+  flex: 1;
+  padding-right: 4mm;
+}
+
+.meta-label {
+  font-size: 5.8pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.meta-value {
+  font-size: 7.4pt;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+/* ---------- Assessment hero -------------------------------------------- */
+
+.hero {
+  display: flex;
+  gap: 5mm;
+  align-items: stretch;
+  padding: 4mm 5mm;
+  border: 0.6pt solid var(--line);
+  border-left-width: 2.2mm;
+  border-left-style: solid;
+  border-radius: 1.5mm;
+  margin-bottom: 7mm;
+  break-inside: avoid;
+}
+
+.hero-badge {
+  flex: 0 0 auto;
+  width: 15mm;
+  height: 15mm;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Liberation Serif", "DejaVu Serif", Georgia, serif;
+  font-size: 19pt;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Explicit width, not `flex: 1`. WeasyPrint does not distribute free space, so a flex:1
+ * child collapses to its content — which is why adding a third hero fact ran "Set by the
+ * reader" straight into the likelihood text instead of starting a new column.
+ * 182mm content - 10mm hero padding - 15mm badge - 5mm gap = 152mm. */
+.hero-body {
+  width: 150mm;
+}
+
+.hero-eyebrow {
+  font-size: 5.8pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.hero-title {
+  font-family: "Liberation Serif", "DejaVu Serif", Georgia, serif;
+  font-size: 12.5pt;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0.5mm 0 2mm;
+}
+
+.hero-facts {
+  display: flex;
+  gap: 6mm;
+}
+
+/* 3 x 45mm + 2 x 6mm gap = 147mm, inside hero-body's 150mm. Fixed for the same reason. */
+.hero-fact {
+  width: 45mm;
+}
+
+.hero-fact-label {
+  font-size: 5.8pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.hero-fact-value {
+  font-size: 7.8pt;
+  color: var(--body);
+}
+
+/* Tone carries emphasis; the words carry the meaning. */
+.tone-benign     { border-left-color: #047857; }
+.tone-benign     .hero-badge { background: #ecfdf5; color: #047857; }
+.tone-watch      { border-left-color: #b45309; }
+.tone-watch      .hero-badge { background: #fffbeb; color: #b45309; }
+.tone-suspicious { border-left-color: #c2410c; }
+.tone-suspicious .hero-badge { background: #fff7ed; color: #c2410c; }
+.tone-malignant  { border-left-color: #be123c; }
+.tone-malignant  .hero-badge { background: #fff1f2; color: #be123c; }
+.tone-known      { border-left-color: #6d28d9; }
+.tone-known      .hero-badge { background: #f5f3ff; color: #6d28d9; }
+.tone-neutral    { border-left-color: #94a3b8; }
+.tone-neutral    .hero-badge { background: #f8fafc; color: #475569; }
+
+/* ---------- Sections ---------------------------------------------------- */
+
+.section {
+  margin-bottom: 6mm;
+}
+
+/* A bordered block rather than a flex row with a spacer element: WeasyPrint collapses
+ * empty flex children, so a `flex: 1` rule div renders as nothing. */
+.section-head {
+  border-bottom: 0.6pt solid var(--line);
+  padding-bottom: 1.5mm;
+  margin-bottom: 2.5mm;
+}
+
+.section-title {
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.section-note {
+  font-size: 6.5pt;
+  font-style: italic;
+  color: var(--faint);
+  margin: -1mm 0 2.5mm;
+}
+
+/* ---------- Key/value rows --------------------------------------------- */
+
+.kv {
+  display: flex;
+  gap: 3mm;
+  padding: 1.6mm 0;
+  border-bottom: 0.4pt solid var(--hairline);
+  break-inside: avoid;
+}
+
+.kv:last-child {
+  border-bottom: none;
+}
+
+.kv-label {
+  flex: 0 0 42mm;
+  font-size: 7.5pt;
+  color: var(--muted);
+}
+
+.kv-main {
+  flex: 1;
+}
+
+.kv-value {
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.kv-definition {
+  font-size: 6.5pt;
+  line-height: 1.35;
+  color: var(--faint);
+  margin-top: 0.4mm;
+}
+
+/* A gap the reader can see is deliberate, rather than a blank that reads as a bug.
+ * inline-block so the chip hugs its text instead of ruling a line across the column. */
+.not-assessed .kv-value {
+  display: inline-block;
+  font-weight: 400;
+  font-size: 7pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 0.5pt dashed var(--line);
+  border-radius: 1mm;
+  padding: 0.3mm 1.6mm;
+}
+
+/* ---------- Findings ---------------------------------------------------- */
+
+.finding {
+  border: 0.6pt solid var(--line);
+  /* The lesion's own colour, set inline. Ties the card to the chip in the panel and to
+   * the mask in the viewer — and it survives where a tiny empty dot element would not. */
+  border-left-width: 1.4mm;
+  border-left-style: solid;
+  border-radius: 1.5mm;
+  padding: 3.5mm 4mm 3mm;
+  margin-bottom: 4mm;
+  /* NOT `break-inside: avoid`.
+   *
+   * It was, and the card is taller than a page: it carries size, location, assessment,
+   * kinetics and the whole ACR table. WeasyPrint answers an unsatisfiable `avoid` by moving
+   * the block to a fresh page, discovering it still does not fit, and breaking it there --
+   * which strands whatever preceded it. The group heading above, held by `break-after: avoid`,
+   * was left alone on a page of its own: the blank page in the middle of every report.
+   *
+   * The requirement that rule was written for -- never split a lesion's curve from the values
+   * it classifies -- belongs to the blocks that state it, and is applied to them below. */
+}
+
+/* `space-between` rather than `flex: 1` or `margin-left: auto` on a sibling — WeasyPrint
+ * honours the former and ignores both of the latter, which silently jams the two labels
+ * together. The masthead uses the same idiom for the same reason. */
+.finding-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 3mm;
+  padding-bottom: 2mm;
+  margin-bottom: 2.5mm;
+  border-bottom: 0.6pt solid var(--line);
+}
+
+.finding-name {
+  font-family: "Liberation Serif", "DejaVu Serif", Georgia, serif;
+  font-size: 11pt;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* The per-finding BI-RADS, beside the name. Deliberately an inline-block inside
+   `.finding-name` rather than a third child of `.finding-head` — that container relies on
+   `justify-content: space-between`, which WeasyPrint implements for two children only. */
+.finding-badge {
+  display: inline-block;
+  min-width: 4.2mm;
+  margin-left: 1.8mm;
+  padding: 0.3mm 1mm;
+  border-radius: 1mm;
+  font-family: "Liberation Sans", "DejaVu Sans", Helvetica, sans-serif;
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: 0.6mm;
+  color: #475569;
+  background: #f8fafc;
+}
+
+/* Same palette as the hero and the per-finding assessment strip. Written out per tone
+   rather than through a custom property because that is what the rest of this stylesheet
+   does — WeasyPrint supports both, and one convention is easier to keep right. */
+.finding-badge.tone-benign     { color: #047857; background: #ecfdf5; }
+.finding-badge.tone-watch      { color: #b45309; background: #fffbeb; }
+.finding-badge.tone-suspicious { color: #c2410c; background: #fff7ed; }
+.finding-badge.tone-malignant  { color: #be123c; background: #fff1f2; }
+.finding-badge.tone-known      { color: #6d28d9; background: #f5f3ff; }
+.finding-badge.tone-neutral    { color: #475569; background: #f8fafc; }
+
+.finding-source {
+  flex: 0 0 auto;
+  font-size: 6.5pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.finding-cols {
+  display: flex;
+  gap: 5mm;
+  align-items: flex-start;
+  /* The requirement `.finding` used to carry, at the size it actually applies to. A curve read
+   * apart from the values it classifies is worse than a page break inside a card: the numbers
+   * are what the shape means. */
+  break-inside: avoid;
+}
+
+.curve-cell {
+  flex: 0 0 auto;
+}
+
+.curve-cell .curve {
+  display: block;
+}
+
+.curve-caption {
+  font-size: 6pt;
+  font-style: italic;
+  color: var(--faint);
+  text-align: center;
+  margin-top: 0.5mm;
+}
+
+.kinetics-cell {
+  flex: 1;
+}
+
+.location-block {
+  display: flex;
+  gap: 5mm;
+  align-items: flex-start;
+  margin-top: 3mm;
+  padding-top: 2.5mm;
+  border-top: 0.4pt solid var(--hairline);
+}
+
+.clock-cell {
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.clock-caption {
+  font-size: 5.8pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.location-cell {
+  flex: 1;
+}
+
+.distance-grid {
+  display: flex;
+  gap: 3mm;
+  margin-top: 2mm;
+}
+
+.distance {
+  flex: 1;
+  border: 0.5pt solid var(--line);
+  border-radius: 1mm;
+  padding: 1.6mm 2mm;
+}
+
+.distance-label {
+  font-size: 5.8pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.distance-value {
+  font-size: 9.5pt;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Provenance is part of the number, not a footnote — a captured measurement and a typed
+ * estimate are different claims. */
+.distance-source {
+  font-size: 5.8pt;
+  color: var(--faint);
+}
+
+.distance.unset .distance-value {
+  font-size: 7pt;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+
+.empty-state {
+  padding: 6mm;
+  text-align: center;
+  font-size: 7.5pt;
+  color: var(--faint);
+  border: 0.5pt dashed var(--line);
+  border-radius: 1.5mm;
+}
+
+/* ── Added with the panel restructure ─────────────────────────────────────
+ * Everything below stays inside the flex subset WeasyPrint implements:
+ * `justify-content: space-between` works; `flex: 1`, `margin-left: auto` and empty flex
+ * children do not, and they fail SILENTLY. Verify any change by rasterising the PDF —
+ * the HTML rendering correctly in a browser is not evidence.
+ */
+
+/* Count beside a group heading. `space-between` on the head rather than `margin-left:auto`
+ * on the count, which does not push in WeasyPrint.
+ *
+ * `break-after: avoid` because a group heading whose first finding does not fit was being
+ * stranded alone at the foot of a page, leaving a third of the sheet blank above a heading
+ * that pointed at nothing. */
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  break-after: avoid;
+}
+
+/* Same reason, one level down: "SIZE" or "ASSESSMENT" alone at a page foot reads as a
+ * truncated document. */
+.sub-title {
+  break-after: avoid;
+}
+
+.section-count {
+  font-size: 6.5pt;
+  font-weight: 700;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Divides the three blocks inside one finding card. */
+.sub-title {
+  margin: 3mm 0 1.5mm;
+  font-size: 6.2pt;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-bottom: 0.4pt solid var(--line);
+  padding-bottom: 1mm;
+}
+
+/* Sizes: same visual language as the distances, so a reader learns one pattern. Wrapping
+ * rather than five equal columns — five across an A4 content width is ~30mm each, which
+ * clips "Maximum linear dimension". */
+.measure-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2mm;
+}
+
+.measure {
+  /* Fixed basis rather than `flex: 1`: WeasyPrint does not distribute free space, so
+   * `flex: 1` children collapse to their content and the row loses its grid. */
+  width: 38mm;
+  border: 0.5pt solid var(--line);
+  border-radius: 1mm;
+  padding: 1.6mm 2mm;
+  /* A measurement and its provenance line are one statement. */
+  break-inside: avoid;
+}
+
+.measure-label {
+  font-size: 5.4pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.measure-value {
+  font-size: 9pt;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.measure-source {
+  font-size: 5.6pt;
+  color: var(--faint);
+}
+
+/* A withheld field is a refusal, not an omission, and has to read as one. */
+.measure-source.withheld {
+  color: #be123c;
+  font-weight: 700;
+}
+
+.measure.unset .measure-value {
+  font-size: 7pt;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+
+/* Per-finding assessment strip. */
+.finding-assess {
+  display: flex;
+  gap: 3mm;
+  align-items: center;
+  padding: 2mm 2.5mm;
+  border: 0.5pt solid var(--line);
+  border-left-width: 2pt;
+  border-left-style: solid;
+  border-radius: 1mm;
+}
+
+.finding-assess-badge {
+  /* Explicit width: an auto-width flex child with short content collapses in WeasyPrint. */
+  width: 9mm;
+  text-align: center;
+  font-family: "Liberation Serif", "DejaVu Serif", Georgia, serif;
+  font-size: 15pt;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.finding-assess-body {
+  width: 130mm;
+}
+
+.finding-assess-title {
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.finding-assess-meta {
+  font-size: 6.4pt;
+  color: var(--faint);
+}
+
+/* The tone classes already set --hero colours; reuse them for the per-finding strip. */
+.finding-assess.tone-benign     { border-left-color: #047857; }
+.finding-assess.tone-benign     .finding-assess-badge { color: #047857; }
+.finding-assess.tone-watch      { border-left-color: #b45309; }
+.finding-assess.tone-watch      .finding-assess-badge { color: #b45309; }
+.finding-assess.tone-suspicious { border-left-color: #c2410c; }
+.finding-assess.tone-suspicious .finding-assess-badge { color: #c2410c; }
+.finding-assess.tone-malignant  { border-left-color: #be123c; }
+.finding-assess.tone-malignant  .finding-assess-badge { color: #be123c; }
+.finding-assess.tone-known      { border-left-color: #6d28d9; }
+.finding-assess.tone-known      .finding-assess-badge { color: #6d28d9; }
+.finding-assess.tone-neutral    { border-left-color: #64748b; }
+.finding-assess.tone-neutral    .finding-assess-badge { color: #64748b; }
+
+/* Provenance tags. */
+.tagrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm;
+  margin-bottom: 2mm;
+}
+
+.tag {
+  padding: 0.8mm 2mm;
+  border: 0.5pt solid #b45309;
+  border-radius: 4mm;
+  font-size: 5.8pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #b45309;
+}
+
+/* Callouts: a stated caveat, not decoration. Left border rather than a background block so
+ * it survives a page break without a half-filled panel. */
+.callout {
+  margin: 2mm 0;
+  padding: 2mm 2.5mm;
+  border-left: 2pt solid #64748b;
+  background: #f8fafc;
+  font-size: 6.8pt;
+  line-height: 1.45;
+  color: var(--body);
+}
+
+.callout.warn {
+  border-left-color: #b45309;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.hero-rule {
+  margin-top: 2mm;
+  font-size: 6.2pt;
+  font-style: italic;
+  color: var(--faint);
+}
+
+/* Reading session hero. */
+/* WeasyPrint implements only part of flex and fails silently: `flex: 1`, `margin-left: auto`
+   and empty flex children all render as nothing. Every child here carries an explicit width.
+   This has already cost two silent regressions in this file. */
+.reading-hero {
+  display: flex;
+  justify-content: space-between;
+  width: 180mm;
+  padding: 6mm 0;
+  border-bottom: 0.4mm solid #333;
+}
+.reading-hero-main { width: 90mm; }
+.reading-hero-side { width: 80mm; }
+.reading-clock { font-size: 22pt; margin: 1mm 0 0; }
+.reading-cap { font-size: 8pt; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+
+/* ACR form tables. */
+.acr-table { width: 180mm; border-collapse: collapse; }
+.acr-table td { padding: 1.4mm 0; border-bottom: 0.2mm solid #ddd; vertical-align: top; }
+.acr-table td.acr-label { width: 110mm; }
+.acr-section-head { break-after: avoid; }
+
+/* Lesion ACR tables nested inside finding cards.
+   Finding card is 182mm (page content), with 4mm padding each side and 0.6pt (≈0.21mm)
+   border each side, leaving 182 - 4 - 4 - 0.21 - 0.21 = 173.58mm for content.
+   Set to 173.5mm to fit inside the finding card without overflow. */
+.finding .acr-table { width: 173.5mm; }
+
+/* Per-finding slice image.
+   No flex here. WeasyPrint implements only a subset -- flex: 1, margin-left: auto and empty
+   flex children all fail silently. See CLAUDE.md. */
+.finding-slice { margin: 6px 0 10px; }
+.finding-slice img { display: block; max-width: 62mm; border: 0.4pt solid #b8c0cc; }
+.finding-slice-caption { font-size: 7pt; color: #55606f; margin: 2pt 0 0; }
+.finding-slice-absent { font-size: 7.5pt; font-style: italic; color: #55606f; margin: 4pt 0; }

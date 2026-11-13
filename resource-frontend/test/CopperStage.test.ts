@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { OrientationError } from 'copper3d'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CopperViewPoint } from '../src/composables/copper-types'
 import type { Modality, ModalityId } from '../src/content/types'
@@ -166,7 +167,7 @@ function makeScene() {
     // with their own `mockImplementation` (see e.g. the "does not fly until
     // ..." test below) -- that call fully replaces this one.
     loadNrrd: vi.fn((...args: unknown[]) => {
-      const callback = args[3] as (volume: unknown, meshes: unknown, slices: unknown) => void
+      const callback = args[2] as (volume: unknown, meshes: unknown, slices: unknown) => void
       callback(
         { RASDimensions: [1, 1, 1], windowHigh: 1, repaintAllSlices: vi.fn() },
         // Only `z`, matching the `axes: ['z']` the app asks for.
@@ -394,6 +395,35 @@ describe('CopperStage navigation choreography', () => {
   })
 
   /**
+   * copper3d 4.1 refuses a volume whose orientation it cannot establish,
+   * through `loadNrrd`'s `opts.onError`. The reader must see the stage's
+   * failure message, not a blank plane.
+   */
+  it('shows the failure alert when copper3d refuses the volume', async () => {
+    const refused = makeScene()
+    // Registered in `sceneMap` only, not this file's `scenes` lookup: a
+    // failed load evicts its scene, and copper3d's `removeSceneFromMap`
+    // checks the eviction took through `getSceneByName`, which here reads
+    // `scenes`.
+    renderer.createScene.mockImplementationOnce((name: string) => {
+      renderer.sceneMap[name] = refused
+      return refused
+    })
+    refused.loadNrrd.mockImplementation((...args: unknown[]) => {
+      (args[3] as { onError: (error: unknown) => void })
+        .onError(new OrientationError('no_space', 'The header has no space field'))
+    })
+
+    const wrapper = mountStage({ modality: MRI })
+    await settle()
+
+    expect(refused.loadNrrd).toHaveBeenCalledTimes(1)
+    const alert = wrapper.find('[role="alert"]')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain('Couldn\'t load the 3D viewer')
+  })
+
+  /**
    * Controller correction C5, and the reason it exists: an earlier draft of
    * this task added a SECOND watcher to pick the transition while leaving
    * the original one loading unconditionally. The density branch would have
@@ -464,7 +494,7 @@ describe('CopperStage navigation choreography', () => {
       return mriScene
     })
     mriScene.loadNrrd.mockImplementation((...args: unknown[]) => {
-      const callback = args[3] as (v: unknown, m: unknown, s: unknown) => void
+      const callback = args[2] as (v: unknown, m: unknown, s: unknown) => void
       finishLoad = () => callback(
         { RASDimensions: [1, 1, 1], windowHigh: 1, repaintAllSlices: vi.fn() },
         // `traverse` because the unused x/y planes are freed by

@@ -1,0 +1,864 @@
+[
+  {
+    "id": "fgt",
+    "title": "A. Amount of fibroglandular tissue (FGT)",
+    "scope": "case",
+    "fields": [
+      {
+        "id": "fgt",
+        "label": "",
+        "kind": "select",
+        "bind": "breast_tissue.fgt",
+        "options": [
+          {
+            "value": "almost_entirely_fatty",
+            "title": "Almost entirely fatty"
+          },
+          {
+            "value": "scattered",
+            "title": "Scattered fibroglandular tissue"
+          },
+          {
+            "value": "heterogeneous",
+            "title": "Heterogeneous fibroglandular tissue"
+          },
+          {
+            "value": "extreme",
+            "title": "Extreme fibroglandular tissue"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bpe",
+    "title": "B. Background parenchymal enhancement (BPE)",
+    "scope": "case",
+    "fields": [
+      {
+        "id": "bpe_level",
+        "label": "1. Level (select one)",
+        "kind": "select",
+        "bind": "breast_tissue.bpe_level",
+        "options": [
+          {
+            "value": "minimal",
+            "title": "Minimal"
+          },
+          {
+            "value": "mild",
+            "title": "Mild"
+          },
+          {
+            "value": "moderate",
+            "title": "Moderate"
+          },
+          {
+            "value": "marked",
+            "title": "Marked"
+          }
+        ]
+      },
+      {
+        "id": "bpe_symmetry",
+        "label": "2. Symmetry",
+        "kind": "select",
+        "bind": "breast_tissue.bpe_symmetry",
+        "options": [
+          {
+            "value": "symmetric",
+            "title": "Symmetric"
+          },
+          {
+            "value": "asymmetric",
+            "title": "Asymmetric"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "masses",
+    "title": "C. Masses",
+    "scope": "lesion",
+    "fields": [
+      {
+        "id": "shape",
+        "label": "1. Shape (select one)",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "oval",
+            "title": "Oval"
+          },
+          {
+            "value": "lobulated",
+            "title": "Lobulated"
+          },
+          {
+            "value": "round",
+            "title": "Round"
+          },
+          {
+            "value": "irregular",
+            "title": "Irregular"
+          }
+        ]
+      },
+      {
+        "id": "margin",
+        "label": "2. Margin (select one)",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "circumscribed",
+            "title": "Circumscribed"
+          },
+          {
+            "value": "non_circumscribed",
+            "title": "Non-circumscribed"
+          },
+          {
+            "value": "non_circumscribed_indistinct",
+            "title": "Non-circumscribed: Indistinct"
+          },
+          {
+            "value": "non_circumscribed_spiculated",
+            "title": "Non-circumscribed: Spiculated"
+          }
+        ]
+      },
+      {
+        "id": "internal_enhancement",
+        "label": "3. Internal enhancement pattern (select one)",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "homogeneous",
+            "title": "Homogeneous"
+          },
+          {
+            "value": "dark_internal_septations",
+            "title": "Dark internal septations"
+          },
+          {
+            "value": "heterogeneous",
+            "title": "Heterogeneous"
+          },
+          {
+            "value": "thick_rim",
+            "title": "Thick rim enhancement"
+          }
+        ]
+      },
+      {
+        "id": "t2_signal",
+        "label": "4. T2 signal intensity",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "hyperintense",
+            "title": "Hyperintense"
+          },
+          {
+            "value": "not_hyperintense",
+            "title": "Not hyperintense"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "nme",
+    "title": "D. Non-mass enhancement (NME)",
+    "scope": "lesion",
+    "fields": [
+      {
+        "id": "nme_distribution",
+        "label": "1. Distribution (select one)",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "diffuse",
+            "title": "Diffuse"
+          },
+          {
+            "value": "regional",
+            "title": "Regional"
+          },
+          {
+            "value": "focal",
+            "title": "Focal"
+          },
+          {
+            "value": "linear",
+            "title": "Linear"
+          },
+          {
+            "value": "segmental",
+            "title": "Segmental"
+          }
+        ]
+      },
+      {
+        "id": "nme_internal",
+        "label": "2. Internal enhancement pattern (select one)",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "homogeneous",
+            "title": "Homogeneous"
+          },
+          {
+            "value": "heterogeneous",
+            "title": "Heterogeneous"
+          },
+          {
+            "value": "clumped",
+            "title": "Clumped"
+          },
+          {
+            "value": "clustered_ring",
+            "title": "Clustered ring"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "kinetics",
+    "title": "E. Enhancement kinetics",
+    "scope": "lesion",
+    "fields": [
+      {
+        "id": "early_phase",
+        "label": "1. Early phase",
+        "kind": "select",
+        "bind": "kinetics.early_phase",
+        "options": [
+          {
+            "value": "slow",
+            "title": "Slow"
+          },
+          {
+            "value": "medium",
+            "title": "Medium"
+          },
+          {
+            "value": "fast",
+            "title": "Fast"
+          }
+        ]
+      },
+      {
+        "id": "delayed_phase",
+        "label": "2. Delayed phase",
+        "kind": "select",
+        "bind": "kinetics.delayed_phase",
+        "options": [
+          {
+            "value": "persistent",
+            "title": "Persistent"
+          },
+          {
+            "value": "plateau",
+            "title": "Plateau"
+          },
+          {
+            "value": "washout",
+            "title": "Washout"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "lymph_nodes",
+    "title": "F. Lymph nodes",
+    "scope": "lesion",
+    "fields": [
+      {
+        "id": "ln_intramammary",
+        "label": "1. Intramammary",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "normal",
+            "title": "Normal"
+          },
+          {
+            "value": "abnormal",
+            "title": "Abnormal"
+          }
+        ]
+      },
+      {
+        "id": "ln_axillary",
+        "label": "2. Axillary",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "normal",
+            "title": "Normal"
+          },
+          {
+            "value": "abnormal",
+            "title": "Abnormal"
+          }
+        ]
+      },
+      {
+        "id": "ln_internal_mammary",
+        "label": "3. Internal mammary",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "normal",
+            "title": "Normal"
+          },
+          {
+            "value": "abnormal",
+            "title": "Abnormal"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "associated",
+    "title": "G. Associated features (select all that apply)",
+    "scope": "lesion",
+    "fields": [
+      {
+        "id": "nipple_retraction",
+        "label": "1. Nipple retraction",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "nipple_involvement",
+        "label": "2. Nipple involvement",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "skin_retraction",
+        "label": "3. Skin retraction",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "skin_thickening",
+        "label": "4. Skin thickening",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "skin_involvement",
+        "label": "5. Skin involvement",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "pectoralis",
+        "label": "6. Pectoralis muscle involvement",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "chest_wall",
+        "label": "7. Chest wall involvement",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "peritumoral_edema",
+        "label": "8. Peritumoral edema",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      }
+    ]
+  },
+  {
+    "id": "other_benign",
+    "title": "H. Other findings, typically benign",
+    "scope": "case",
+    "fields": [
+      {
+        "id": "high_t1_duct_signal",
+        "label": "1. High T1 duct signal",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "cysts",
+        "label": "2. Cysts",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "postoperative_fluid",
+        "label": "3. Postoperative fluid collections (hematoma/seroma)",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "post_therapy_thickening",
+        "label": "4. Post-therapy skin thickening and trabecular thickening",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "non_enhancing_mass",
+        "label": "5. Non-enhancing mass",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "signal_void",
+        "label": "6. Signal void",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "fat_necrosis",
+        "label": "7. Fat necrosis",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "hamartoma",
+        "label": "8. Hamartoma",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "enhancing_skin_lesions",
+        "label": "9. Enhancing skin lesions",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      }
+    ]
+  },
+  {
+    "id": "location",
+    "title": "I. Location of finding",
+    "scope": "lesion",
+    "fields": [
+      {
+        "id": "laterality",
+        "label": "1. Laterality",
+        "kind": "select",
+        "bind": "location.laterality",
+        "options": [
+          {
+            "value": "right",
+            "title": "Right"
+          },
+          {
+            "value": "left",
+            "title": "Left"
+          },
+          {
+            "value": "bilateral",
+            "title": "Bilateral"
+          }
+        ]
+      },
+      {
+        "id": "clock_face",
+        "label": "Clock face",
+        "kind": "select",
+        "bind": "location.clock_position",
+        "options": [
+          {
+            "value": "1",
+            "title": "1 o'clock"
+          },
+          {
+            "value": "2",
+            "title": "2 o'clock"
+          },
+          {
+            "value": "3",
+            "title": "3 o'clock"
+          },
+          {
+            "value": "4",
+            "title": "4 o'clock"
+          },
+          {
+            "value": "5",
+            "title": "5 o'clock"
+          },
+          {
+            "value": "6",
+            "title": "6 o'clock"
+          },
+          {
+            "value": "7",
+            "title": "7 o'clock"
+          },
+          {
+            "value": "8",
+            "title": "8 o'clock"
+          },
+          {
+            "value": "9",
+            "title": "9 o'clock"
+          },
+          {
+            "value": "10",
+            "title": "10 o'clock"
+          },
+          {
+            "value": "11",
+            "title": "11 o'clock"
+          },
+          {
+            "value": "12",
+            "title": "12 o'clock"
+          }
+        ]
+      },
+      {
+        "id": "quadrant",
+        "label": "Quadrant",
+        "kind": "select",
+        "bind": "location.quadrant",
+        "options": [
+          {
+            "value": "UOQ",
+            "title": "Upper outer quadrant (UOQ)"
+          },
+          {
+            "value": "UIQ",
+            "title": "Upper inner quadrant (UIQ)"
+          },
+          {
+            "value": "LOQ",
+            "title": "Lower outer quadrant (LOQ)"
+          },
+          {
+            "value": "LIQ",
+            "title": "Lower inner quadrant (LIQ)"
+          },
+          {
+            "value": "retroareolar",
+            "title": "Retroareolar"
+          },
+          {
+            "value": "central",
+            "title": "Central"
+          },
+          {
+            "value": "axillary_tail",
+            "title": "Axillary tail"
+          }
+        ]
+      },
+      {
+        "id": "other_anatomic",
+        "label": "Other anatomic location",
+        "kind": "text",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "depth",
+        "label": "3. Depth",
+        "kind": "select",
+        "bind": "location.depth",
+        "options": [
+          {
+            "value": "anterior",
+            "title": "Anterior third"
+          },
+          {
+            "value": "middle",
+            "title": "Middle third"
+          },
+          {
+            "value": "posterior",
+            "title": "Posterior third"
+          }
+        ]
+      },
+      {
+        "id": "distance_nipple",
+        "label": "4. Distance from nipple",
+        "kind": "number",
+        "bind": "location.distance_nipple_cm",
+        "options": []
+      },
+      {
+        "id": "distance_skin",
+        "label": "5. Distance from skin",
+        "kind": "number",
+        "bind": "location.distance_skin_cm",
+        "options": []
+      },
+      {
+        "id": "distance_chestwall",
+        "label": "6. Distance from chestwall",
+        "kind": "number",
+        "bind": "location.distance_ribcage_cm",
+        "options": []
+      },
+      {
+        "id": "lesion_birads",
+        "label": "BI-RADS category for this finding",
+        "kind": "select",
+        "bind": "assessment",
+        "options": [
+          {
+            "value": "0",
+            "title": "0 \u2014 Incomplete"
+          },
+          {
+            "value": "1",
+            "title": "1 \u2014 Negative"
+          },
+          {
+            "value": "2",
+            "title": "2 \u2014 Benign"
+          },
+          {
+            "value": "3",
+            "title": "3 \u2014 Probably benign"
+          },
+          {
+            "value": "4",
+            "title": "4 \u2014 Suspicious"
+          },
+          {
+            "value": "5",
+            "title": "5 \u2014 Highly suggestive of malignancy"
+          },
+          {
+            "value": "6",
+            "title": "6 \u2014 Known biopsy-proven malignancy"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "implants",
+    "title": "J. Implants and other types of augmentation",
+    "scope": "case",
+    "fields": [
+      {
+        "id": "implant_location",
+        "label": "1. Implant location",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "prepectoral",
+            "title": "Prepectoral"
+          },
+          {
+            "value": "retropectoral",
+            "title": "Retropectoral"
+          }
+        ]
+      },
+      {
+        "id": "implant_material",
+        "label": "Material",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "saline",
+            "title": "Saline"
+          },
+          {
+            "value": "silicone",
+            "title": "Silicone"
+          },
+          {
+            "value": "other",
+            "title": "Other implant/augmentation material"
+          }
+        ]
+      },
+      {
+        "id": "implant_status",
+        "label": "Intact vs ruptured",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "intact",
+            "title": "Intact"
+          },
+          {
+            "value": "ruptured",
+            "title": "Ruptured"
+          }
+        ]
+      },
+      {
+        "id": "implant_other_material",
+        "label": "Other implant/augmentation material",
+        "kind": "text",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "implant_lumen",
+        "label": "3. Lumen type",
+        "kind": "select",
+        "bind": null,
+        "options": [
+          {
+            "value": "single",
+            "title": "Single"
+          },
+          {
+            "value": "double",
+            "title": "Double"
+          }
+        ]
+      },
+      {
+        "id": "intracapsular_radial_folds",
+        "label": "a. Radial folds",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "intracapsular_subcapsular_line",
+        "label": "i. Subcapsular line sign",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "intracapsular_keyhole",
+        "label": "ii. Keyhole sign",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "intracapsular_linguine",
+        "label": "iii. Linguine sign",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "intracapsular_water_droplets",
+        "label": "c. Water droplets",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "extracapsular_breast",
+        "label": "a. Breast",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "extracapsular_lymph_nodes",
+        "label": "b. Lymph nodes",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "focal_contour_bulge",
+        "label": "6. Focal contour bulge",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      },
+      {
+        "id": "peri_implant_fluid",
+        "label": "7. Peri-implant fluid",
+        "kind": "check",
+        "bind": null,
+        "options": []
+      }
+    ]
+  },
+  {
+    "id": "assessment",
+    "title": "Assessment categories (select one)",
+    "scope": "case",
+    "fields": [
+      {
+        "id": "assessment",
+        "label": "",
+        "kind": "select",
+        "bind": "assessment.category",
+        "options": [
+          {
+            "value": "cat_0_additional",
+            "title": "Category 0: Incomplete: Need Additional Imaging Evaluation"
+          },
+          {
+            "value": "cat_0_prior",
+            "title": "Category 0: Incomplete: Need Prior Imaging for Comparison"
+          },
+          {
+            "value": "cat_1",
+            "title": "Category 1: Negative"
+          },
+          {
+            "value": "cat_2",
+            "title": "Category 2: Benign"
+          },
+          {
+            "value": "cat_3",
+            "title": "Category 3: Probably Benign"
+          },
+          {
+            "value": "cat_4",
+            "title": "Category 4: Suspicious"
+          },
+          {
+            "value": "cat_5",
+            "title": "Category 5: Highly Suggestive of Malignancy"
+          },
+          {
+            "value": "cat_6",
+            "title": "Category 6: Known Biopsy-Proven Malignancy"
+          }
+        ]
+      }
+    ]
+  }
+]

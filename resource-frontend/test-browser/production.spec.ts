@@ -1,10 +1,10 @@
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { createReadStream, statSync } from 'node:fs'
 import { createServer, request, type Server } from 'node:http'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createGzip } from 'node:zlib'
 import { expect, test } from '@playwright/test'
-import { focusedPanel, waitForModality } from './helpers'
+import { artefactProblem, artefactsRequired, centreDrawnFraction, focusedPanel, focusedStage, waitForModality } from './helpers'
 
 /**
  * The §12 criteria that can only be measured against what actually ships.
@@ -46,7 +46,10 @@ import { focusedPanel, waitForModality } from './helpers'
  */
 
 const PUBLIC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../build')
-const PORT = 3159
+// Clear of this repo's own servers: the dev server on 3158 (also
+// docker-compose's default `FRONTEND_PORT`), and the Docker frontend when it
+// runs beside the dev server with a `FRONTEND_PORT=3159` override.
+const PORT = 4180
 const base = `http://localhost:${PORT}`
 
 const TYPES: Record<string, string> = {
@@ -84,10 +87,14 @@ function findFile(urlPath: string) {
 
 let server: Server | undefined
 
+/** `index.html` rather than the folder: a folder's mtime is not its build time. */
+const buildProblem = artefactProblem('build/index.html')
+
 test.describe('§12 acceptance, against the built site', () => {
-  test.skip(!existsSync(PUBLIC_DIR), 'no build/ -- run `yarn build` first')
+  test.skip(Boolean(buildProblem) && !artefactsRequired, `${buildProblem} -- run \`yarn test:artefacts\``)
 
   test.beforeAll(async () => {
+    if (buildProblem) throw new Error(`${buildProblem} -- run \`yarn test:artefacts\` (CI or REQUIRE_ARTEFACTS is set, so this fails rather than skips)`)
     server = createServer((req, res) => {
       if (req.url?.startsWith('/api/')) {
         // The imaging catalogue, from the backend (see playwright.config.ts).
@@ -135,7 +142,8 @@ test.describe('§12 acceptance, against the built site', () => {
   })
 
   test.afterAll(async () => {
-    await new Promise<void>(done => server?.close(() => done()))
+    // Unset when beforeAll refused a missing or stale artefact.
+    if (server) await new Promise<void>(done => server!.close(() => done()))
   })
 
   test('item 7: the-breast first screen transfers under 3MB', async ({ page }) => {
@@ -174,6 +182,83 @@ test.describe('§12 acceptance, against the built site', () => {
       'design doc §9.2: the entry point loads no volume',
     ).toEqual([])
     expect(total, 'design doc §12 item 7: first screen under 3MB').toBeLessThan(3 * 1024 * 1024)
+  })
+
+  /**
+   * A 3D view loads and paints, on the artefact that ships.
+   *
+   * copper3d 4.1 fetches every NRRD inside a Web Worker started from a
+   * `blob:` URL, where a root-relative URL cannot be parsed. `yarn dev` hands
+   * it an absolute URL (the backend on :8082), so every dev-server spec
+   * passed while this build showed "Couldn't load the 3D viewer" on every
+   * imaging modality and never requested a single volume. One volume of
+   * each kind -- the 3D MRI and the 3D mammogram -- and one Draco GLB: the
+   * build no longer ships three's own decoder files
+   * (tooling/three-decoder-defaults.ts), so the anatomy view is what proves
+   * the decoder the app does use, `public/draco/`, still loads.
+   */
+  for (const view of [
+    { path: '/density-a/anatomy', asset: /\.glb$/, draco: true },
+    { path: '/density-a/mri', asset: /\.nrrd$/, draco: false },
+    { path: '/cancer-ductal/mammogram', asset: /\.nrrd$/, draco: false },
+  ]) {
+    test(`a 3D view loads and paints: ${view.path}`, async ({ page }) => {
+      const assets: string[] = []
+      const decoder: string[] = []
+      page.on('response', (r) => {
+        const url = r.url()
+        if (view.asset.test(url)) assets.push(`${r.status()} ${url}`)
+        if (url.includes('/draco/')) decoder.push(`${r.status()} ${url}`)
+      })
+
+      await page.setViewportSize({ width: 1280, height: 800 })
+      await page.goto(`${base}${view.path}`)
+      await waitForModality(page)
+      // Healthy means the asset is in the scene: the stage enables Reset
+      // only then, and a failed load never gets there.
+      await expect(focusedPanel(page).getByRole('button', { name: /reset/i })).toBeEnabled({ timeout: 60_000 })
+      await expect.poll(() => centreDrawnFraction(focusedStage(page)), {
+        message: 'the stage is healthy but drew nothing',
+        timeout: 30_000,
+      }).toBeGreaterThan(0.2)
+      await expect(page.getByRole('alert')).toHaveCount(0)
+      expect(assets.length, 'the view\'s asset was never requested').toBeGreaterThan(0)
+      expect(assets.every(a => a.startsWith('200 ')), assets.join('\n')).toBe(true)
+      if (view.draco) {
+        expect(decoder.length, 'the Draco decoder was never requested').toBeGreaterThan(0)
+        expect(decoder.every(d => d.startsWith('200 ')), decoder.join('\n')).toBe(true)
+      }
+    })
+  }
+
+  /**
+   * My MRI's volume goes through the same worker, from its own call site.
+   *
+   * Needs the backend to open the patient dataset (a MinIO at the backend's
+   * MINIO_ENDPOINT with the SPARC dataset uploaded). When it cannot, the page shows its own
+   * session error and never mounts the viewer -- that is the environment, not
+   * the code under test, so the test skips rather than fails.
+   */
+  test('My MRI loads the scan and paints it', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${base}/my-mri`)
+
+    const viewer = page.getByRole('img', { name: 'Your MRI scan in 3D' })
+    // The 3D column's session error. The report column has an error state of
+    // its own (a local backend cannot render the PDF), which says nothing
+    // about the scan, so everything here is scoped to the 3D column.
+    const column = page.locator('section', { has: page.getByRole('heading', { name: '3D view' }), hasNot: page.getByRole('heading', { name: 'Report' }) })
+    const sessionError = column.locator('[data-state="error"]')
+    await expect(viewer.or(sessionError)).toBeVisible({ timeout: 60_000 })
+    test.skip(await sessionError.isVisible(), 'the backend could not open the patient dataset (is MINIO_ENDPOINT right?)')
+
+    // Enabled once the volume has loaded and been placed.
+    await expect(page.getByRole('button', { name: 'Reset the 3D view' })).toBeEnabled({ timeout: 120_000 })
+    await expect(column.getByRole('alert')).toHaveCount(0)
+    await expect.poll(() => centreDrawnFraction(viewer), {
+      message: 'the viewer is ready but drew no scan',
+      timeout: 30_000,
+    }).toBeGreaterThan(0.2)
   })
 
   test('a deep link boots and renders', async ({ page }) => {

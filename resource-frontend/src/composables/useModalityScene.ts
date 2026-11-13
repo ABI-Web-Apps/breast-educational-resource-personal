@@ -1,4 +1,6 @@
+import { Box3, MeshPhysicalMaterial, Vector3 } from 'three'
 import { onScopeDispose, ref, shallowRef } from 'vue'
+import { loadNrrdVolume } from '@/composables/loadNrrdVolume'
 import { useAssetUrl } from '@/composables/useAssetUrl'
 import { publicBase } from '@/runtime/env'
 import type { Modality } from '@/content/types'
@@ -429,9 +431,9 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
     }
 
     renderer.sceneMap[nextName] = target
-    // copper3d keeps its own copy on the instance
-    // (dist/bundle.esm.js:84350); leaving it stale would make any future
-    // reader of `scene.sceneName` disagree with the map it is keyed in.
+    // copper3d keeps its own copy on the instance (`createScene` writes
+    // `sceneName`); leaving it stale would make any future reader of
+    // `scene.sceneName` disagree with the map it is keyed in.
     target.sceneName = nextName
     nameOfScene.set(target, nextName)
   }
@@ -669,10 +671,10 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
       })
     }).finally(() => clearTimeout(timer))
 
-    // Awaited: it swaps the fat layer's material, and returning before that
-    // lands would let the morph's `collectFadeTargets` capture the GLB's
-    // original material and then fade a material no longer on the mesh.
-    await tintFatLayer(group)
+    // Tinted before returning: it swaps the fat layer's material, so the
+    // morph's `collectFadeTargets` must see the swapped one, or it would
+    // capture the GLB's original and fade a material no longer on the mesh.
+    tintFatLayer(group)
     return group
   }
 
@@ -680,7 +682,6 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
     const group = await loadGlb(target, assetUrl)
     group.name = 'anatomy-model'
     anatomyAssetByScene.set(target, assetUrl)
-    const { Box3, Vector3 } = await import('three')
     try {
       // `Box3.setFromObject` walks real `Object3D` machinery
       // (`updateWorldMatrix`, `matrixWorld`, ...) that only a genuine
@@ -721,10 +722,11 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
    * and raising the loading overlay would flash a spinner over the very
    * transition it is meant to be seamless. The camera is untouched too --
    * `loadView` has already run for this scene, which sets copper3d's
-   * `cameraPositionFlag` (dist/bundle.esm.js:84054), and that flag is what
-   * suppresses `loadGltf`'s own "frame the new model" camera write
-   * (dist/bundle.esm.js:84305). Without a previous `loadView` this method
-   * would silently move the camera, which is exactly what §7.1 forbids.
+   * `cameraPositionFlag` (`baseScene.loadView`), and that flag is what
+   * suppresses `loadGltf`'s own "frame the new model" camera write (it only
+   * moves the camera while the flag is unset). Without a previous
+   * `loadView` this method would silently move the camera, which would break
+   * the seamless morph.
    */
   async function prepareMorph(slug: string, modality: Modality): Promise<AnatomyMorph | null> {
     const renderer = stage.renderer.value
@@ -845,10 +847,13 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
       armStallTimer() // starts the clock even before the first progress event
 
       try {
-        target.loadNrrd(
+        // copper3d 4.1 reorders every volume into canonical LPS voxel order,
+        // which is why the old `segmentation` flag (its approximation) is
+        // gone from this signature.
+        loadNrrdVolume(
+          target,
           assetUrl,
           bar,
-          true,
           (volume, meshes, slices) => {
             settle()
             target.addObject(meshes.z)
@@ -935,6 +940,11 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
             // plus two slice planes this app disposed immediately.
             axes: ['z'],
             onProgress,
+            // A network or parse failure, or an `OrientationError`: copper3d
+            // refuses a volume whose patient orientation it cannot establish
+            // rather than guess at it. Either way the stage shows its failure
+            // state instead of a blank plane. `OrientationError` extends
+            // `Error`, so it passes through unwrapped with its `code`.
             onError: (err) => {
               settle()
               reject(err instanceof Error ? err : new Error(String(err)))
@@ -979,8 +989,8 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
  * showing an anatomy model per density case. copper3d's `loadPureGLB` (the
  * only method with a `color` option, and not even the one this renderer's
  * scene class exposes -- see copper-types.ts's `loadGltf` doc) never
- * actually reads that option: dist/bundle.esm.js:83678-83706 applies
- * `enhanceMaterial`'s generic PBR tweaks but never touches `opts.color`.
+ * actually reads that option: it applies `enhanceMaterial`'s generic PBR
+ * tweaks but never touches `opts.color` (still true in copper3d 4.1.4).
  * There is no library feature to lean on here, so this reproduces the
  * legacy component's traversal by hand instead of inventing a new
  * appearance (a flat pink tint, as an earlier draft of this task assumed,
@@ -1002,15 +1012,13 @@ export function useModalityScene(stage: StageApi, injectedBudget?: SceneBudget) 
  *     the legacy material does not have (a fresh MeshPhysicalMaterial is
  *     roughness 1, metalness 0, no maps).
  *
- * Importing `three` here means a second copy of it crosses into a copper3d
- * scene. That is safe because the versions are identical: `three@0.185.1` is
- * pinned in package.json and is the same build copper3d inlines (yarn
- * resolves this app's three from copper3d's own dependency), and three's
- * scene graph dispatches on `.isMesh`/`.isMaterial` marker properties rather
- * than `instanceof` precisely so mixed copies interoperate. If copper3d ever
- * bundles a different revision, that pin must move with it.
+ * The `three` this module imports is the same copy copper3d uses: since
+ * copper3d 4, three is a peer dependency, so the `three` pinned in
+ * package.json is the only one on the page and objects cross between this
+ * app and copper3d freely. The pin must stay inside copper3d's `three` peer
+ * range (it logs a revision-mismatch `console.error` at import otherwise).
  */
-async function tintFatLayer(group: SceneObject): Promise<void> {
+function tintFatLayer(group: SceneObject): void {
   const targets: NonNullable<SceneObjectChild['material']>[] = []
   const meshes: SceneObjectChild[] = []
   group.traverse((child) => {
@@ -1020,7 +1028,6 @@ async function tintFatLayer(group: SceneObject): Promise<void> {
   })
   if (!meshes.length) return
 
-  const { MeshPhysicalMaterial } = await import('three')
   for (const mesh of meshes) {
     mesh.material = new MeshPhysicalMaterial({
       transparent: true,

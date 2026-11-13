@@ -394,7 +394,7 @@ describe('default layout', () => {
   it('forces the stage to an exact 1:1 square at phone, per design doc §10.3', () => {
     const wrapper = mountLayout()
     const stage = wrapper.find('.stage-marker').element.closest('section')
-    expect(stage?.className).toContain('tw:max-md:aspect-square')
+    expect(stage?.className).toContain('max-md:aspect-square')
     // flex-none, not flex-1, at phone -- otherwise flex-grow sizing fights
     // the aspect ratio for the final height instead of yielding to it.
     expect(stage?.className).toContain('tw:max-md:flex-none')
@@ -442,5 +442,26 @@ describe('default layout', () => {
       expect(src, `${file}: navigator.userAgent`).not.toMatch(/navigator\.userAgent/)
       expect(src, `${file}: ResizeObserver`).not.toMatch(/ResizeObserver/)
     }
+  })
+})
+
+describe('default layout: stage sizing options', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('keeps the square phone stage and the viewer label by default', () => {
+    const section = mountLayout().get('section')
+    expect(section.classes()).toContain('max-md:aspect-square')
+    expect(section.attributes('aria-label')).toBe('3D case viewer')
+  })
+
+  it('drops the square stage and takes a custom label on request', () => {
+    const wrapper = mount(DefaultLayout, {
+      props: { squareStage: false, stageLabel: 'Custom stage' },
+      global: { stubs: { AppHeader: AppHeaderStub, CaseSidebar: CaseSidebarStub } },
+      slots: { stage: '<div />', content: '<div />' },
+    })
+    const section = wrapper.get('section')
+    expect(section.classes()).not.toContain('max-md:aspect-square')
+    expect(section.attributes('aria-label')).toBe('Custom stage')
   })
 })

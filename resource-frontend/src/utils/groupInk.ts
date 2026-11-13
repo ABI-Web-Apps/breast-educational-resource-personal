@@ -11,3 +11,6 @@ export const GROUP_INK: Record<CaseGroup, string> = {
   benign: 'tw:text-group-benign',
   cancer: 'tw:text-group-cancer',
 }
+
+/** The YOUR RESULTS sidebar group is not a case group, so it has its own ink. */
+export const RESULTS_INK = 'tw:text-group-results'

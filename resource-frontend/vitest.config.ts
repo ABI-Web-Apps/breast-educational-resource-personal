@@ -24,6 +24,8 @@ export default defineConfig({
     setupFiles: ['./test/setup.ts'],
     // Imaging URLs as a root-relative deploy resolves them, so assertions
     // read `/modelView/...` rather than the dev backend's absolute origin.
+    // It also marks a build without a backend (`hasBackend()`), so a test
+    // that needs My MRI's route or sidebar entry stubs it empty.
     env: { VITE_ASSET_BASE: '/modelView/' },
   },
 })

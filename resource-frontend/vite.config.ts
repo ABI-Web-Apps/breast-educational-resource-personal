@@ -6,6 +6,7 @@ import cssInjectedByJs from 'vite-plugin-css-injected-by-js'
 import { VitePWA } from 'vite-plugin-pwa'
 import type { VitePWAOptions } from 'vite-plugin-pwa'
 import { scopeToRoot } from './tooling/postcss-scope'
+import { threeDecoderDefaults } from './tooling/three-decoder-defaults'
 import { readAppVersion } from './version'
 
 /**
@@ -48,6 +49,25 @@ export const pwaOptions: Partial<VitePWAOptions> = {
 }
 
 /**
+ * The UMD bundle's own URL, standing in for `import.meta.url` where three's
+ * decoder loaders read it (see `threeDecoderDefaults`).
+ *
+ * A UMD bundle has no `import.meta`, and Rolldown -- unlike Rollup, which
+ * polyfilled it from `document.currentScript` -- replaces it with `{}`. Since
+ * three 0.186, DRACOLoader and KTX2Loader (both pulled in by copper3d 4.1)
+ * build `new URL(<asset>, import.meta.url)` at module scope, so the base was
+ * the string "undefined", `new URL` threw while the bundle was still
+ * evaluating, and the plugin's global was never defined.
+ *
+ * Read in the intro, i.e. during that synchronous evaluation, the one moment
+ * `document.currentScript` is set (the portal adds the bundle as a `<script>`
+ * element). A read, not a side effect -- the same one `src/runtime/env.ts`
+ * makes.
+ */
+const BUNDLE_URL = '__BER_BUNDLE_URL__'
+const bundleUrlIntro = `var ${BUNDLE_URL} = typeof document === 'undefined' ? 'file:///' : (document.currentScript && document.currentScript.src) || document.baseURI;`
+
+/**
  * Two builds from one source tree:
  *
  *   yarn build          the standalone site (index.html, PWA) -> build/
@@ -71,6 +91,9 @@ export default defineConfig(({ command }) => {
 
     plugins: [
       vue(),
+      // The standalone build is an ES module, so there the loaders keep their
+      // real `import.meta.url` -- only in a shape the asset plugin skips.
+      threeDecoderDefaults(isPluginBuild ? BUNDLE_URL : 'String(import.meta.url)'),
       ...(isPluginBuild ? [cssInjectedByJs()] : [VitePWA(pwaOptions)]),
     ],
 
@@ -106,6 +129,9 @@ export default defineConfig(({ command }) => {
     server: {
       host: '0.0.0.0',
       port: 3158,
+      // `yarn test:artefacts` rebuilds both outputs while `yarn dev` may be
+      // running; watching them made the dev server crash on EBUSY on Windows.
+      watch: { ignored: ['**/build/**', '**/dist/**'] },
     },
 
     // `vite preview` serves the production build, which asks for `/api` on
@@ -126,6 +152,7 @@ export default defineConfig(({ command }) => {
           rollupOptions: {
             external: ['vue', 'vuetify', 'pinia', 'vue-toastification'],
             output: {
+              intro: bundleUrlIntro,
               globals: {
                 'vue': 'Vue',
                 'vuetify': 'Vuetify',

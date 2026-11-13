@@ -39,6 +39,10 @@ export {
   isRotateEnabled,
   orbitStepPose,
   orbitSwingAngle,
+  // Not one of the contributed functions: the error class `loadNrrd` refuses
+  // an unorientable volume with, named here so `instanceof` reads the same
+  // class the loader throws.
+  OrientationError,
   poseDistance,
   removeSceneFromMap,
   restoreFade,

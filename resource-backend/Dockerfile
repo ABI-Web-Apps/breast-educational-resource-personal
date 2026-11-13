@@ -2,6 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /resource_backend
 
+# WeasyPrint (report PDF) needs Pango for text layout. The font packages matter
+# as much as the libraries: the slim base image ships almost no fonts, and
+# without them every glyph in the report renders as a box.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
+    fontconfig fonts-liberation2 fonts-dejavu-core \
+    && apt-get clean
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --timeout=120 --retries=10 -r requirements.txt
 

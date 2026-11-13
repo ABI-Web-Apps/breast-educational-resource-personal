@@ -29,7 +29,10 @@ backend) that also runs as a standalone site. See `README.md` for commands and
   `PluginRoot`).
 - **URLs:** imaging through `useAssetUrl().url()`, public files through
   `useAssetUrl().publicUrl()`, the API through `getApiBaseUrl()`
-  (`src/runtime/env.ts`). Never hardcode `/api`, a host or a port.
+  (`src/runtime/env.ts`). Never hardcode `/api`, a host or a port. Load NRRD
+  volumes only through `loadNrrdVolume()`: copper3d fetches them in a `blob:`
+  worker that cannot resolve a relative URL (`test/loadNrrdVolume.test.ts`
+  enforces it).
 - The imaging catalogue lives in `resource-backend/static/modelView/` and is
   served by the backend; never move it into `resource-frontend/public/` (the
   plugin build uploads `public/` to the portal's tools bucket on every build).
@@ -41,5 +44,13 @@ backend) that also runs as a standalone site. See `README.md` for commands and
 
 ```bash
 cd resource-frontend && yarn test && yarn type-check && yarn build && yarn build:plugin
+cd resource-frontend && yarn test:artefacts   # rebuilds both, then the 3D views on build/ and dist/
 cd resource-backend && python -m pytest -q
 ```
+
+`yarn test:artefacts` is the only check that loads the 3D views from what
+ships. Every other browser spec runs on `yarn dev`, which uses absolute
+backend URLs and unbundled modules -- the copper3d 4.1 upgrade broke both
+builds while all of them passed. It needs the backend on :8082 and, for the
+My MRI check, a MinIO with the dataset at the backend's `MINIO_ENDPOINT`
+(`localhost:9000` by default; see README "My MRI" for the port overrides).

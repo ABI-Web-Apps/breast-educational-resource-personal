@@ -11,6 +11,11 @@ and behind the portal's /plugin/<expose>/ location, which strips its prefix):
 
     GET /api/health                 liveness, for compose and the portal
     GET /api/modelView/<path>       the catalogue, read-only
+    POST /api/tool-config           validate a tool config, resolve its dataset (SSE)
+    GET /api/patients/<assay>/<cohort>/mri       registration-1 volume, gzip-encoded NRRD
+    GET /api/patients/<assay>/<cohort>/findings  the findings record
+    GET /api/patients/<assay>/<cohort>/mask.glb  the mask as one coloured mesh per label
+    GET /api/patients/<assay>/<cohort>/report.pdf?tz=<IANA>  the findings report PDF
 """
 
 import mimetypes
@@ -22,6 +27,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
+
+from app.router.patients import router as patients_router
+from app.router.tool_config import router as tool_config_router
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -66,10 +74,14 @@ app = FastAPI(title="Breast Educational Resource", docs_url=None, redoc_url=None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_methods=["GET", "HEAD", "OPTIONS"],
+    allow_methods=["GET", "HEAD", "POST", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["Content-Length", "ETag"],
 )
+
+
+app.include_router(tool_config_router)
+app.include_router(patients_router)
 
 
 @app.get("/api/health")

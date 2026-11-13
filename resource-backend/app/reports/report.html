@@ -1,0 +1,262 @@
+{#
+  BI-RADS MRI structured report.
+
+  Every value arriving here is already a display string — `template.build_context` does all
+  formatting, lookups and placeholder substitution. Keep logic out of this file so the
+  document stays readable as a document.
+
+  The two `footer-*` divs are zero-height carriers whose text `report.css` lifts into the
+  running footer via `string-set`. They must stay first in the body.
+
+  Ported from the validator without its reading-session block: this app times no reading.
+  `report.css` keeps that block's rules unused, so the stylesheet stays the validator's.
+#}
+<div class="footer-left">{{ case_name }} · Generated {{ meta[2].value }}</div>
+<div class="footer-center">{{ disclaimer }}</div>
+
+<header class="masthead">
+  <div class="brandband"></div>
+  <div class="masthead-inner">
+    <div class="wordmark">{{ product }}</div>
+    <div class="doctype">{{ document_title }}</div>
+  </div>
+</header>
+
+<h1 class="case-name">{{ case_name }}</h1>
+
+<div class="meta-grid">
+  {% for cell in meta %}
+  <div class="meta-cell">
+    <div class="meta-label">{{ cell.label }}</div>
+    <div class="meta-value">{{ cell.value }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+{# Assessment first. A reader who only looks at one thing should see the conclusion. #}
+<section class="hero {{ assessment.tone }}">
+  <div class="hero-badge">{{ assessment.category }}</div>
+  <div class="hero-body">
+    {# "Examination", not "Final": each finding carries its own category, and an unlabelled
+       number beside a list of findings reads as belonging to them. #}
+    <div class="hero-eyebrow">Examination assessment</div>
+    <h2 class="hero-title">{{ assessment.title }}</h2>
+    <div class="hero-facts">
+      <div class="hero-fact">
+        <div class="hero-fact-label">Management</div>
+        <div class="hero-fact-value">{{ assessment.management }}</div>
+      </div>
+      <div class="hero-fact">
+        <div class="hero-fact-label">Likelihood of cancer</div>
+        <div class="hero-fact-value">{{ assessment.likelihood }}</div>
+      </div>
+      <div class="hero-fact">
+        <div class="hero-fact-label">Source</div>
+        <div class="hero-fact-value">{{ assessment.source }}</div>
+      </div>
+    </div>
+    {% if assessment.rule %}
+    <div class="hero-rule">{{ assessment.rule }}</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <span class="section-title">Breast tissue</span>
+  </div>
+  <p class="section-note">{{ breast_tissue.note }}</p>
+  {% for row in breast_tissue.rows %}
+  <div class="kv {% if not row.assessed %}not-assessed{% endif %}">
+    <div class="kv-label">{{ row.label }}</div>
+    <div class="kv-main">
+      <div class="kv-value">{{ row.value }}</div>
+      {% if row.definition %}<div class="kv-definition">{{ row.definition }}</div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+{# ACR form: case-level sections #}
+{% for acr_section in acr.case %}
+<section class="section">
+  <div class="section-head">
+    <span class="section-title">{{ acr_section.title }}</span>
+  </div>
+  {% if acr_section.rows %}
+  <table class="acr-table">
+    {% for row in acr_section.rows %}
+    <tr>
+      <td class="acr-label">{{ row.label }}</td>
+      <td>{{ row.text }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</section>
+{% endfor %}
+
+{% if not findings %}
+<section class="section">
+  <div class="section-head">
+    <span class="section-title">Findings</span>
+  </div>
+  <div class="empty-state">No findings recorded for this case.</div>
+</section>
+{% endif %}
+
+{#
+  Grouped by band, most severe first. The band is derived from each finding's BI-RADS, so a
+  card can never sit under a heading its badge contradicts. Within each finding the order is
+  Findings (size, then location) -> Assessment -> Enhancement kinetics, which mirrors the
+  panel exactly. The two must not drift.
+#}
+{% for group in finding_groups %}
+<section class="section">
+  <div class="section-head">
+    <span class="section-title">{{ group.title }}</span>
+    <span class="section-count">{{ group.count }}</span>
+  </div>
+
+  {% for finding in group.findings %}
+  <article class="finding" style="border-left-color: {{ finding.color }}">
+    <div class="finding-head">
+      {#
+        The badge is inline INSIDE the name rather than a third flex child. `.finding-head`
+        is `justify-content: space-between`, which WeasyPrint implements for two children;
+        a third would spread them across the row. `flex: 1` and `margin-left: auto` fail
+        silently in WeasyPrint too; rasterise the PDF before adding flex here.
+      #}
+      <span class="finding-name">{{ finding.label }}<span
+        class="finding-badge {{ finding.assessment.tone }}"
+      >{{ finding.assessment.category }}</span></span>
+      <span class="finding-source">{{ finding.layer }} · channel {{ finding.channel }}</span>
+    </div>
+
+    {% if finding.provenance_tags %}
+    <div class="tagrow">
+      {% for tag in finding.provenance_tags %}
+      <span class="tag">{{ tag }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── Findings: size, then location ───────────────────────────────────── #}
+    <div class="sub-title">Size</div>
+    <div class="measure-grid">
+      {% for size in finding.size_rows %}
+      <div class="measure {% if not size.assessed %}unset{% endif %}">
+        <div class="measure-label">{{ size.label }}</div>
+        <div class="measure-value">{{ size.value }}</div>
+        {% if size.source %}
+        <div class="measure-source {% if size.withheld %}withheld{% endif %}">{{ size.source }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    {% if finding.size_withheld_note %}
+    <div class="callout warn">{{ finding.size_withheld_note }}</div>
+    {% endif %}
+
+    <div class="sub-title">Location</div>
+    <div class="location-block">
+      <div class="clock-cell">
+        {{ finding.clock_svg | safe }}
+        <div class="clock-caption">Clock face</div>
+      </div>
+      <div class="location-cell">
+        {% for row in finding.location_rows %}
+        <div class="kv {% if not row.assessed %}not-assessed{% endif %}">
+          <div class="kv-label">{{ row.label }}</div>
+          <div class="kv-main">
+            <div class="kv-value">{{ row.value }}</div>
+          </div>
+        </div>
+        {% endfor %}
+
+        <div class="distance-grid">
+          {% for distance in finding.distance_rows %}
+          <div class="distance {% if not distance.assessed %}unset{% endif %}">
+            <div class="distance-label">{{ distance.label }}</div>
+            <div class="distance-value">{{ distance.value }}</div>
+            {% if distance.source %}
+            <div class="distance-source">{{ distance.source }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Assessment ──────────────────────────────────────────────────────── #}
+    <div class="sub-title">Assessment</div>
+    <div class="finding-assess {{ finding.assessment.tone }}">
+      <div class="finding-assess-badge">{{ finding.assessment.category }}</div>
+      <div class="finding-assess-body">
+        <div class="finding-assess-title">{{ finding.assessment.title }}</div>
+        <div class="finding-assess-meta">
+          Filed under {{ finding.group_label }}{% if finding.assessment.assessed %} ·
+          {{ finding.assessment.management }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Enhancement kinetics, last ──────────────────────────────────────── #}
+    <div class="sub-title">Enhancement kinetics</div>
+    <div class="finding-cols">
+      <div class="curve-cell">
+        {{ finding.curve_svg | safe }}
+        {% if finding.curve_is_mock %}
+        <div class="curve-caption">Placeholder curve — not measured from the images</div>
+        {% endif %}
+      </div>
+      <div class="kinetics-cell">
+        {# The ACR definition under each value is what makes the report self-documenting. #}
+        {% for row in finding.kinetics_rows %}
+        <div class="kv {% if not row.assessed %}not-assessed{% endif %}">
+          <div class="kv-label">{{ row.label }}</div>
+          <div class="kv-main">
+            <div class="kv-value">{{ row.value }}</div>
+            {% if row.definition %}
+            <div class="kv-definition">{{ row.definition }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% set image = lesion_images.get(finding.id, {}) %}
+    {% if image.uri %}
+      <div class="finding-slice">
+        <img src="{{ image.uri }}" alt="Axial slice through {{ finding.label }}">
+        <p class="finding-slice-caption">{{ image.caption }}</p>
+      </div>
+    {% elif image.reason %}
+      <p class="finding-slice-absent">No slice image - {{ image.reason }}.</p>
+    {% endif %}
+
+    {# ACR form: lesion-level sections #}
+    {% for acr_section in acr.lesions[finding.id] %}
+    <div class="sub-title">{{ acr_section.title }}</div>
+    {% if acr_section.rows %}
+    <table class="acr-table">
+      {% for row in acr_section.rows %}
+      <tr>
+        <td class="acr-label">{{ row.label }}</td>
+        <td>{{ row.text }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+    {% endfor %}
+  </article>
+  {% endfor %}
+</section>
+{% endfor %}
+
+{% if findings %}
+<p class="section-note">{{ size_note }}</p>
+<p class="section-note">{{ distance_note }}</p>
+{% endif %}

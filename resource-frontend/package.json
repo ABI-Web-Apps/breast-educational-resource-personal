@@ -12,13 +12,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:browser": "playwright test",
+    "test:artefacts": "yarn build && cross-env VITE_PLUGIN_ROUTE_PREFIX=/plugin/ber yarn build:plugin && cross-env REQUIRE_ARTEFACTS=1 playwright test production plugin-bundle",
     "assets": "node ../scripts/optimize-assets.mjs",
     "icons": "node ../scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
-    "copper3d": "3.9.0",
+    "copper3d": "4.1.4",
     "pinia": "^3.0.4",
-    "three": "0.185.1",
+    "three": "0.186.1",
     "vue": "^3.5.40"
   },
   "devDependencies": {
@@ -27,6 +28,7 @@
     "@playwright/test": "1.62.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^22.10.0",
+    "@types/three": "0.186.0",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/test-utils": "^2.4.11",
     "cross-env": "^10.1.0",

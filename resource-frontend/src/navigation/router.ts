@@ -166,3 +166,15 @@ export function usePageRoute(): ComputedRef<PageRoute> {
   const router = useAppRouter()
   return computed(() => router.route.value)
 }
+
+/**
+ * The route of the enclosing page when there is one, else the live route,
+ * else null. For chrome (the sidebar) that renders inside a page but is also
+ * mounted on its own, where there is no router to ask.
+ */
+export function useOptionalPageRoute(): ComputedRef<PageRoute> | null {
+  const pageRoute = inject(PAGE_ROUTE, null)
+  if (pageRoute) return pageRoute
+  const router = inject(ROUTER, null)
+  return router ? computed(() => router.route.value) : null
+}

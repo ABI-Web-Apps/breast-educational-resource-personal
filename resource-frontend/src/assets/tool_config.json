@@ -1,0 +1,13 @@
+{
+  "user_info": { "uuid": "user-001" },
+  "assay_info": {
+    "uuid": "assay-001",
+    "name": "breast-educational-resource",
+    "cohorts": ["sub-1"],
+    "datasets": [
+      { "name": "workdir",
+        "sample_type": ["registration_1_nrrd", "researcher_manual_LPS_nii", "findings_json"] }
+    ]
+  },
+  "system": { "minio": { "base_url": "http://localhost:9000/measurements/" } }
+}

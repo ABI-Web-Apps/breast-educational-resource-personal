@@ -1,0 +1,2415 @@
+{
+  "about": "Shared orientation cases, read by the backend (tests/test_canonical.py) and by the app through the engine (annotator-frontend/test/orientation/agreement.spec.ts). Axis codes use the TOWARD convention: canonical index i increases toward patient Left, j toward Posterior, k toward Superior. 'space_directions' and 'directions' hold one vector per voxel axis; expected 'directions' and 'origin' are in LPS millimetres. 'perm[c]' is the native axis that becomes canonical axis c; 'flip[c]' means canonical index = n - 1 - native index. 'labels' are the letters at each screen edge of each view (z axial, y coronal, x sagittal) under the 1-degree rule. 'data' arrays are flattened with i fastest. Generated once by a script; edit by hand from here on.",
+  "cases": [
+    {
+      "id": "identity_lps",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "space_origin": [
+          10,
+          20,
+          30
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          2,
+          3
+        ],
+        "directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "origin": [
+          10,
+          20,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "data": {
+        "native_f": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "canonical_f": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ]
+      },
+      "note": "LPS-stored: the canonical transform is the identity (workdir today)."
+    },
+    {
+      "id": "ras_stored_lps_space",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            -0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            -0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "space_origin": [
+          10,
+          20,
+          30
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          true,
+          true,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          0.5,
+          0.5,
+          2
+        ],
+        "directions": [
+          [
+            0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "origin": [
+          8.5,
+          19,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "data": {
+        "native_f": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "canonical_f": [
+          11,
+          10,
+          9,
+          8,
+          7,
+          6,
+          5,
+          4,
+          3,
+          2,
+          1,
+          0,
+          23,
+          22,
+          21,
+          20,
+          19,
+          18,
+          17,
+          16,
+          15,
+          14,
+          13,
+          12
+        ]
+      },
+      "note": "workdir_ea_tp1's storage order: origin moves to the new first voxel (o + 3*d0 + 2*d1)."
+    },
+    {
+      "id": "space_ras_header",
+      "source": "nrrd",
+      "header": {
+        "space": "right-anterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "space_origin": [
+          -10,
+          -20,
+          30
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          true,
+          true,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          0.5,
+          0.5,
+          2
+        ],
+        "directions": [
+          [
+            0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "origin": [
+          8.5,
+          19,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "The same grid as ras_stored_lps_space, written in RAS space: x and y negate on the way in."
+    },
+    {
+      "id": "space_short_ras_upper",
+      "source": "nrrd",
+      "header": {
+        "space": "RAS",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "space_origin": [
+          -10,
+          -20,
+          30
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          true,
+          true,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          0.5,
+          0.5,
+          2
+        ],
+        "directions": [
+          [
+            0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "origin": [
+          8.5,
+          19,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "Short form of the space name."
+    },
+    {
+      "id": "space_lowercase_lps",
+      "source": "nrrd",
+      "header": {
+        "space": "lps",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "space_origin": [
+          10,
+          20,
+          30
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          2,
+          3
+        ],
+        "directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "origin": [
+          10,
+          20,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "Space names are case-insensitive."
+    },
+    {
+      "id": "space_las_header",
+      "source": "nrrd",
+      "header": {
+        "space": "left-anterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "space_origin": [
+          10,
+          -20,
+          30
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          true,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          0.5,
+          0.5,
+          2
+        ],
+        "directions": [
+          [
+            0.5,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            2
+          ]
+        ],
+        "origin": [
+          10,
+          19,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "LAS space: only y negates on the way in."
+    },
+    {
+      "id": "permuted_sagittal",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            -0.8
+          ],
+          [
+            2,
+            0,
+            0
+          ]
+        ],
+        "space_origin": [
+          10,
+          20,
+          30
+        ]
+      },
+      "expect": {
+        "perm": [
+          2,
+          0,
+          1
+        ],
+        "flip": [
+          false,
+          false,
+          true
+        ],
+        "dims": [
+          2,
+          4,
+          3
+        ],
+        "spacing": [
+          2,
+          0.5,
+          0.8
+        ],
+        "directions": [
+          [
+            2,
+            0,
+            0
+          ],
+          [
+            0,
+            0.5,
+            0
+          ],
+          [
+            0,
+            0,
+            0.8
+          ]
+        ],
+        "origin": [
+          10,
+          20,
+          28.4
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "data": {
+        "native_f": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+        ],
+        "canonical_f": [
+          8,
+          20,
+          9,
+          21,
+          10,
+          22,
+          11,
+          23,
+          4,
+          16,
+          5,
+          17,
+          6,
+          18,
+          7,
+          19,
+          0,
+          12,
+          1,
+          13,
+          2,
+          14,
+          3,
+          15
+        ]
+      },
+      "note": "perm[c] is the native axis that becomes canonical axis c."
+    },
+    {
+      "id": "oblique_0p5deg_about_s",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0.9999619230641713,
+            0.008726535498373935,
+            0
+          ],
+          [
+            -0.008726535498373935,
+            0.9999619230641713,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          1,
+          1
+        ],
+        "directions": [
+          [
+            0.9999619230641713,
+            0.008726535498373935,
+            0
+          ],
+          [
+            -0.008726535498373935,
+            0.9999619230641713,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "obliquity_deg": [
+          0.5,
+          0.5,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "Below the 1-degree rule: single letters. Obliquity is kept, never snapped."
+    },
+    {
+      "id": "oblique_10deg_about_s",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0.984807753012208,
+            0.17364817766693033,
+            0
+          ],
+          [
+            -0.17364817766693033,
+            0.984807753012208,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          1,
+          1
+        ],
+        "directions": [
+          [
+            0.984807753012208,
+            0.17364817766693033,
+            0
+          ],
+          [
+            -0.17364817766693033,
+            0.984807753012208,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "obliquity_deg": [
+          10,
+          10,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "RA",
+            "right": "LP",
+            "top": "AL",
+            "bottom": "PR"
+          },
+          "y": {
+            "left": "RA",
+            "right": "LP",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "AL",
+            "right": "PR",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "Above the 1-degree rule: secondary letters, largest component first."
+    },
+    {
+      "id": "oblique_44deg_about_s",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0.7193398003386512,
+            0.6946583704589973,
+            0
+          ],
+          [
+            -0.6946583704589973,
+            0.7193398003386512,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          1,
+          1
+        ],
+        "directions": [
+          [
+            0.7193398003386512,
+            0.6946583704589973,
+            0
+          ],
+          [
+            -0.6946583704589973,
+            0.7193398003386512,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "obliquity_deg": [
+          44,
+          44,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "RA",
+            "right": "LP",
+            "top": "AL",
+            "bottom": "PR"
+          },
+          "y": {
+            "left": "RA",
+            "right": "LP",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "AL",
+            "right": "PR",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "Just inside the 45-degree limit."
+    },
+    {
+      "id": "oblique_45deg_ambiguous",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            0.7071067811865476,
+            0.7071067811865476,
+            0
+          ],
+          [
+            -0.7071067811865476,
+            0.7071067811865476,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "ambiguous_oblique"
+      },
+      "note": "Equally near L and P: no nearest axis, refused."
+    },
+    {
+      "id": "workdir_contrast_pre",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          384,
+          384,
+          104
+        ],
+        "space_directions": [
+          [
+            0.8854114885893742,
+            3.9771527453505715e-06,
+            0.003033917028659452
+          ],
+          [
+            1.815787749069594e-10,
+            0.8854159256938167,
+            -0.0011607420764369744
+          ],
+          [
+            -0.005139816678885722,
+            0.001966422048118365,
+            1.4999899051223107
+          ]
+        ],
+        "space_origin": [
+          -175.54231014117,
+          -159.94431170635,
+          -84.435948170807
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          384,
+          384,
+          104
+        ],
+        "spacing": [
+          0.88541668653488,
+          0.8854166865348803,
+          1.5000000000000007
+        ],
+        "directions": [
+          [
+            0.8854114885893742,
+            3.9771527453505715e-06,
+            0.003033917028659452
+          ],
+          [
+            1.815787749069594e-10,
+            0.8854159256938167,
+            -0.0011607420764369744
+          ],
+          [
+            -0.005139816678885722,
+            0.001966422048118365,
+            1.4999899051223107
+          ]
+        ],
+        "origin": [
+          -175.54231014117,
+          -159.94431170635,
+          -84.435948170807
+        ],
+        "obliquity_deg": [
+          0.1963269196332604,
+          0.07511225183206334,
+          0.21020487071501537
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "workdir sub-1 contrast_pre_nrrd: LPS-stored, about 0.2 degrees oblique."
+    },
+    {
+      "id": "workdir_ea_tp1_contrast_pre",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          512,
+          512,
+          156
+        ],
+        "space_directions": [
+          [
+            -0.625,
+            0,
+            0
+          ],
+          [
+            0,
+            -0.625,
+            0
+          ],
+          [
+            0,
+            0,
+            1.3999974193548388
+          ]
+        ],
+        "space_origin": [
+          155.937,
+          116.562,
+          -70.6876
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          true,
+          true,
+          false
+        ],
+        "dims": [
+          512,
+          512,
+          156
+        ],
+        "spacing": [
+          0.625,
+          0.625,
+          1.3999974193548388
+        ],
+        "directions": [
+          [
+            0.625,
+            0,
+            0
+          ],
+          [
+            0,
+            0.625,
+            0
+          ],
+          [
+            0,
+            0,
+            1.3999974193548388
+          ]
+        ],
+        "origin": [
+          -163.438,
+          -202.813,
+          -70.6876
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "workdir_ea_tp1 sub-1 contrast_pre_nrrd: RAS-stored, the dataset that renders upside down."
+    },
+    {
+      "id": "no_space",
+      "source": "nrrd",
+      "header": {
+        "space": null,
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "no_space"
+      }
+    },
+    {
+      "id": "scanner_xyz",
+      "source": "nrrd",
+      "header": {
+        "space": "scanner-xyz",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "scanner_space"
+      },
+      "note": "Equals LPS only for a supine head-first patient; breast MRI is prone."
+    },
+    {
+      "id": "right_handed_3d",
+      "source": "nrrd",
+      "header": {
+        "space": "3D-right-handed",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "non_anatomical_space"
+      }
+    },
+    {
+      "id": "time_space",
+      "source": "nrrd",
+      "header": {
+        "space": "right-anterior-superior-time",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "time_space"
+      }
+    },
+    {
+      "id": "unknown_space",
+      "source": "nrrd",
+      "header": {
+        "space": "patient-xyz",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "unknown_space"
+      }
+    },
+    {
+      "id": "no_origin",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": null
+      },
+      "expect": {
+        "error": "no_origin"
+      },
+      "note": "Without an origin the grid has no patient position; ITK would assume 0."
+    },
+    {
+      "id": "no_directions",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": null,
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "no_directions"
+      }
+    },
+    {
+      "id": "non_spatial_axis",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2,
+          5
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          null
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "not_3d"
+      }
+    },
+    {
+      "id": "zero_length_axis",
+      "source": "nrrd",
+      "header": {
+        "space": "left-posterior-superior",
+        "sizes": [
+          4,
+          3,
+          2
+        ],
+        "space_directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "space_origin": [
+          0,
+          0,
+          0
+        ]
+      },
+      "expect": {
+        "error": "degenerate"
+      }
+    },
+    {
+      "id": "nifti_lps_grid",
+      "source": "nifti",
+      "header": {
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "sform_code": 1,
+        "sform": [
+          [
+            -1,
+            0,
+            0,
+            -10
+          ],
+          [
+            0,
+            -2,
+            0,
+            -20
+          ],
+          [
+            0,
+            0,
+            3,
+            30
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "qform_code": 1,
+        "qform": [
+          [
+            -1,
+            0,
+            0,
+            -10
+          ],
+          [
+            0,
+            -2,
+            0,
+            -20
+          ],
+          [
+            0,
+            0,
+            3,
+            30
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          2,
+          3
+        ],
+        "directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            0,
+            3
+          ]
+        ],
+        "origin": [
+          10,
+          20,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "NIfTI affines are RAS: x and y negate on the way in."
+    },
+    {
+      "id": "nifti_ras_grid_sform_only",
+      "source": "nifti",
+      "header": {
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "sform_code": 1,
+        "sform": [
+          [
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "qform_code": 0,
+        "qform": null
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          true,
+          true,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          1,
+          1
+        ],
+        "directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "origin": [
+          -3,
+          -2,
+          0
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      }
+    },
+    {
+      "id": "nifti_ras_grid_qform_only",
+      "source": "nifti",
+      "header": {
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "sform_code": 0,
+        "sform": null,
+        "qform_code": 1,
+        "qform": [
+          [
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          true,
+          true,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          1,
+          1
+        ],
+        "directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ],
+        "origin": [
+          -3,
+          -2,
+          0
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      }
+    },
+    {
+      "id": "nifti_codes_zero",
+      "source": "nifti",
+      "header": {
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "sform_code": 0,
+        "sform": null,
+        "qform_code": 0,
+        "qform": null
+      },
+      "expect": {
+        "error": "no_orientation"
+      },
+      "note": "ITK and nibabel guess different geometries for this; refused."
+    },
+    {
+      "id": "nifti_qform_sform_disagree",
+      "source": "nifti",
+      "header": {
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "sform_code": 1,
+        "sform": [
+          [
+            -1,
+            0,
+            0,
+            -10
+          ],
+          [
+            0,
+            -2,
+            0,
+            -20
+          ],
+          [
+            0,
+            0,
+            3,
+            30
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "qform_code": 1,
+        "qform": [
+          [
+            -1,
+            0,
+            0,
+            -15
+          ],
+          [
+            0,
+            -2,
+            0,
+            -20
+          ],
+          [
+            0,
+            0,
+            3,
+            30
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "expect": {
+        "error": "qform_sform_disagree"
+      },
+      "note": "Both set, 5 mm apart: different readers would place the mask differently."
+    },
+    {
+      "id": "nifti_qform_rotated_1deg",
+      "source": "nifti",
+      "header": {
+        "dims": [
+          40,
+          30,
+          20
+        ],
+        "sform_code": 1,
+        "sform": [
+          [
+            -1,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            -1,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "qform_code": 1,
+        "qform": [
+          [
+            -0.9998476951563913,
+            0.01745240643728351,
+            0,
+            0
+          ],
+          [
+            -0.01745240643728351,
+            -0.9998476951563913,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "expect": {
+        "error": "qform_sform_disagree"
+      },
+      "note": "Same voxel order, but the qform is turned 1 degree: corners land ~0.7 mm apart, over a tenth of a voxel."
+    },
+    {
+      "id": "nifti_sheared_sform",
+      "source": "nifti",
+      "header": {
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "sform_code": 1,
+        "sform": [
+          [
+            -1,
+            0,
+            0.01,
+            10
+          ],
+          [
+            0,
+            -1,
+            0,
+            20
+          ],
+          [
+            0,
+            0,
+            2,
+            30
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ],
+        "qform_code": 1,
+        "qform": [
+          [
+            -1,
+            0,
+            0.01,
+            10
+          ],
+          [
+            0,
+            -1,
+            0,
+            20
+          ],
+          [
+            0,
+            0,
+            2,
+            30
+          ],
+          [
+            0,
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "expect": {
+        "perm": [
+          0,
+          1,
+          2
+        ],
+        "flip": [
+          false,
+          false,
+          false
+        ],
+        "dims": [
+          4,
+          3,
+          2
+        ],
+        "spacing": [
+          1,
+          1,
+          2.000024999843752
+        ],
+        "directions": [
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            -0.01,
+            0,
+            2
+          ]
+        ],
+        "origin": [
+          -10,
+          -20,
+          30
+        ],
+        "obliquity_deg": [
+          0,
+          0,
+          0.2864765102771806
+        ],
+        "labels": {
+          "z": {
+            "left": "R",
+            "right": "L",
+            "top": "A",
+            "bottom": "P"
+          },
+          "y": {
+            "left": "R",
+            "right": "L",
+            "top": "S",
+            "bottom": "I"
+          },
+          "x": {
+            "left": "A",
+            "right": "P",
+            "top": "S",
+            "bottom": "I"
+          }
+        }
+      },
+      "note": "A qform cannot hold shear, so it is stored as the nearest rigid matrix. The two place every voxel within a tenth of a voxel of each other: consistent, and the sform is used."
+    }
+  ]
+}

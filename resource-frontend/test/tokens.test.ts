@@ -35,7 +35,7 @@ const REQUIRED = [
   'bg', 'surface', 'surface-sunken', 'border', 'border-strong',
   'text', 'text-muted', 'text-subtle',
   'brand', 'brand-hover', 'brand-subtle',
-  'group-anatomy', 'group-benign', 'group-cancer',
+  'group-anatomy', 'group-benign', 'group-cancer', 'group-results',
   'anatomy-ink', 'anatomy-fill',
   'mammogram-ink', 'mammogram-fill',
   'ultrasound-ink', 'ultrasound-fill',
@@ -68,7 +68,7 @@ describe('every ink used for TEXT meets AA on white', () => {
   // band is asserted below.
   const inks = [
     'brand-hover',
-    'group-anatomy', 'group-benign', 'group-cancer',
+    'group-anatomy', 'group-benign', 'group-cancer', 'group-results',
     'anatomy-ink', 'mammogram-ink', 'ultrasound-ink', 'mri-ink',
   ] as const
 

@@ -1,0 +1,114 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import MyMriColumnHeader from '@/components/myMri/MyMriColumnHeader.vue'
+import MyMriColumnState from '@/components/myMri/MyMriColumnState.vue'
+import MyMriReport from '@/components/myMri/MyMriReport.vue'
+import MyMriViewer from '@/components/myMri/MyMriViewer.vue'
+import DefaultLayout from '@/layouts/DefaultLayout.vue'
+import { MY_MRI_COPY, colourSentence } from '@/content/myMri'
+import { useDocumentTitle } from '@/navigation/head'
+import { providePageRoute } from '@/navigation/router'
+import type { PageRoute } from '@/navigation/routes'
+import { fetchJson } from '@/myMri/api'
+import { useMyMriSession } from '@/myMri/useMyMriSession'
+
+const props = defineProps<{ route: PageRoute }>()
+providePageRoute(computed(() => props.route))
+
+const session = useMyMriSession()
+const { cohort, status, error, progress, total, reload, urls, findings, withReload } = session
+
+const progressText = computed(() => total.value > 0
+  ? `${MY_MRI_COPY.loading} (${progress.value} of ${total.value})`
+  : MY_MRI_COPY.loading)
+const sentence = computed(() => colourSentence(findings.value))
+
+/**
+ * The viewer's own Try again bumps this, which rebuilds the 3D scene alone: a
+ * scan that failed to display needs no new session, and the report column
+ * stays as it is. Session failures keep the column's Try again (`reload`).
+ */
+const viewerAttempt = ref(0)
+
+/**
+ * The scan and the mask are fetched by copper3d, outside `withReload`, so a
+ * backend that restarted (and so forgot the assay) would answer every rebuilt
+ * viewer with 409. One findings request through `withReload` first re-posts
+ * the config if needed. Its answer is not used: `no_findings` already proves
+ * the assay is loaded, and any other failure is the rebuilt viewer's to show.
+ */
+async function retryViewer(): Promise<void> {
+  const findingsUrl = urls.value?.findings
+  if (findingsUrl) {
+    try {
+      await withReload(() => fetchJson(findingsUrl))
+    }
+    catch { /* see above */ }
+  }
+  viewerAttempt.value++
+}
+
+useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
+</script>
+
+<template>
+  <DefaultLayout :square-stage="false" stage-label="Your MRI scan and report">
+    <template #heading>
+      <div class="tw:p-6 tw:pb-0">
+        <p class="tw:text-caption tw:font-bold tw:uppercase tw:tracking-wide tw:text-group-results">
+          {{ MY_MRI_COPY.eyebrow }}
+        </p>
+        <h1 class="tw:text-h1 tw:font-bold tw:text-text">{{ MY_MRI_COPY.title }}</h1>
+        <p class="tw:mt-1 tw:text-body-sm tw:text-text-muted">{{ MY_MRI_COPY.subline(cohort) }}</p>
+      </div>
+    </template>
+
+    <template #stage>
+      <div class="tw:grid tw:grid-cols-1 tw:gap-4 tw:p-6 tw:max-xl:flex-none tw:xl:min-h-0 tw:xl:flex-1 tw:xl:grid-cols-2 tw:xl:grid-rows-1">
+        <section class="tw:flex tw:min-h-80 tw:xl:min-h-0 tw:flex-col tw:rounded-card tw:border tw:border-border tw:bg-surface-sunken">
+          <MyMriColumnHeader :title="MY_MRI_COPY.viewerHeading" />
+          <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" live @retry="reload()">
+            <MyMriViewer
+              v-if="urls"
+              :key="`${urls.mri}#${viewerAttempt}`"
+              :mri="urls.mri"
+              :mask="urls.mask"
+              :findings="findings"
+              @retry="retryViewer()"
+            />
+          </MyMriColumnState>
+        </section>
+        <section class="tw:flex tw:min-h-80 tw:xl:min-h-0 tw:flex-col tw:rounded-card tw:border tw:border-border tw:bg-surface-sunken">
+          <MyMriReport
+            v-if="status === 'ready' && urls"
+            :url-for="urls.report"
+            :cohort="cohort"
+            :with-reload="withReload"
+          />
+          <template v-else>
+            <MyMriColumnHeader :title="MY_MRI_COPY.reportHeading" />
+            <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" @retry="reload()" />
+          </template>
+        </section>
+      </div>
+    </template>
+
+    <template #content>
+      <div class="tw:flex tw:flex-col tw:gap-4 tw:p-6 tw:text-body tw:text-text">
+        <h2 class="tw:text-caption tw:font-bold tw:uppercase tw:tracking-wide tw:text-text-muted">
+          {{ MY_MRI_COPY.panelHeading }}
+        </h2>
+        <p>{{ MY_MRI_COPY.intro }}</p>
+        <p>
+          {{ MY_MRI_COPY.markedAreas }}
+          <template v-if="sentence">{{ ' ' }}{{ MY_MRI_COPY.colourMatch(sentence) }}</template>
+        </p>
+        <p>
+          {{ MY_MRI_COPY.controlsLead }}
+          <strong>{{ MY_MRI_COPY.controlsReset }}</strong> {{ MY_MRI_COPY.controlsTail }}
+        </p>
+        <p>{{ MY_MRI_COPY.reportNote }}</p>
+      </div>
+    </template>
+  </DefaultLayout>
+</template>
