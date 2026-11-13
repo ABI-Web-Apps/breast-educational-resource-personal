@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import MyMriColumnHeader from '@/components/myMri/MyMriColumnHeader.vue'
 import MyMriColumnState from '@/components/myMri/MyMriColumnState.vue'
 import { MY_MRI_COPY } from '@/content/myMri'
-import { fetchBlob, isAbort } from '@/myMri/api'
+import { fetchBlob, isAbort, toMyMriError } from '@/myMri/api'
 import type { MyMriError } from '@/myMri/api'
 
 const props = defineProps<{
@@ -43,7 +44,7 @@ async function refetch(): Promise<void> {
     status.value = 'ready'
   } catch (e) {
     if (isAbort(e) || mine.signal.aborted) return
-    summary.value = messageFor(e as MyMriError)
+    summary.value = messageFor(toMyMriError(e) as MyMriError)
     status.value = 'error'
   }
 }
@@ -55,18 +56,18 @@ onBeforeUnmount(() => {
 void refetch()
 defineExpose({ refetch })
 
+// The report column only exists once the session is ready, so its state is the live one.
 const linkClass = 'tw:rounded-card tw:border tw:border-border tw:px-3 tw:py-1 tw:text-body-sm tw:font-bold tw:text-text'
 </script>
 
 <template>
   <div class="tw:flex tw:min-h-0 tw:flex-1 tw:flex-col">
-    <div class="tw:flex tw:items-center tw:justify-between tw:border-b tw:border-border tw:px-4 tw:py-2">
-      <h2 class="tw:text-body-sm tw:font-bold tw:text-text">{{ MY_MRI_COPY.reportHeading }}</h2>
+    <MyMriColumnHeader :title="MY_MRI_COPY.reportHeading">
       <a v-if="objectUrl" :href="objectUrl" :download="`${cohort}-mri-report.pdf`" :class="linkClass">
         {{ MY_MRI_COPY.reportDownload }}
       </a>
-    </div>
-    <MyMriColumnState :status="status" :summary="summary" :progress-text="MY_MRI_COPY.reportLoading" @retry="refetch()">
+    </MyMriColumnHeader>
+    <MyMriColumnState :status="status" :summary="summary" :progress-text="MY_MRI_COPY.reportLoading" live @retry="refetch()">
       <iframe
         v-if="inline && objectUrl"
         :src="objectUrl"

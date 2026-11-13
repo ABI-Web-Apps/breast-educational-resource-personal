@@ -7,8 +7,8 @@ const pdfRes = () => new Response(new Blob(['%PDF-1.7 test'], { type: 'applicati
 const urlFor = (tz: string) => `/api/patients/a/sub-1/report.pdf?tz=${encodeURIComponent(tz)}`
 const withReload = <T>(fn: () => Promise<T>) => fn()
 
-const create = vi.fn(() => 'blob:report-1')
-const revoke = vi.fn()
+let create: ReturnType<typeof vi.spyOn>
+let revoke: ReturnType<typeof vi.spyOn>
 const mounted: { unmount: () => void }[] = []
 
 function mountReport(props: Record<string, unknown> = {}) {
@@ -22,16 +22,16 @@ function setViewer(value: boolean | undefined) {
 
 describe('MyMriReport', () => {
   beforeEach(() => {
-    create.mockClear().mockReturnValue('blob:report-1')
-    revoke.mockClear()
+    create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:report-1')
+    revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     vi.stubGlobal('fetch', vi.fn(async () => pdfRes()))
-    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }))
     setViewer(true)
   })
   afterEach(async () => {
     mounted.splice(0).forEach(w => w.unmount())
     await flushPromises()
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
     setViewer(undefined)
   })
 
@@ -90,17 +90,59 @@ describe('MyMriReport', () => {
     expect(w.text()).toContain('Your files could not be read.')
   })
 
-  it('refetches only the report on Try again, revoking the old URL', async () => {
+  it('refetches only the report on Try again, without touching the session', async () => {
     const f = vi.fn()
       .mockResolvedValueOnce(jsonRes(503, { detail: { code: 'report_unavailable', summary: 'Nope.' } }))
       .mockResolvedValueOnce(pdfRes())
     vi.stubGlobal('fetch', f)
-    const w = mountReport()
+    const reload = vi.fn(<T,>(fn: () => Promise<T>) => fn())
+    const w = mountReport({ withReload: reload })
     await flushPromises()
+    expect(reload).toHaveBeenCalledTimes(1)
     await w.get('button').trigger('click')
     await flushPromises()
+    // Each attempt is one report request through withReload; nothing else was fetched.
     expect(f).toHaveBeenCalledTimes(2)
+    expect(f.mock.calls.every(c => String(c[0]).includes('report.pdf'))).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(2)
     expect(w.get('iframe').attributes('src')).toBe('blob:report-1')
+    expect(revoke).not.toHaveBeenCalled()
+  })
+
+  it('makes its loading and error states the live region', async () => {
+    let finish!: (r: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => { finish = r })))
+    const w = mountReport()
+    expect(w.get('[data-state="loading"]').attributes('role')).toBe('status')
+    finish(jsonRes(503, { detail: { code: 'report_unavailable', summary: 'Nope.' } }))
+    await flushPromises()
+    expect(w.get('[data-state="error"]').attributes('role')).toBe('alert')
+    expect(w.findAll('[role="alert"],[role="status"]')).toHaveLength(1)
+  })
+
+  it('ignores a slow first response after a retry', async () => {
+    const resolvers: ((r: Response) => void)[] = []
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => { resolvers.push(r) })))
+    const w = mountReport()
+    const refetch = (w.vm as unknown as { refetch: () => Promise<void> }).refetch
+    void refetch()
+    resolvers[1]!(pdfRes())
+    await flushPromises()
+    create.mockReturnValue('blob:newer')
+    resolvers[0]!(pdfRes())
+    await flushPromises()
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(w.get('iframe').attributes('src')).toBe('blob:report-1')
+  })
+
+  it('creates no object URL when a response arrives after unmount', async () => {
+    let finish!: (r: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => { finish = r })))
+    const w = mountReport()
+    w.unmount()
+    finish(pdfRes())
+    await flushPromises()
+    expect(create).not.toHaveBeenCalled()
   })
 
   it('revokes the previous object URL when refetching', async () => {

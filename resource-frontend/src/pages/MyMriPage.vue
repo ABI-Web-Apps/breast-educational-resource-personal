@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import MyMriColumnHeader from '@/components/myMri/MyMriColumnHeader.vue'
 import MyMriColumnState from '@/components/myMri/MyMriColumnState.vue'
 import MyMriReport from '@/components/myMri/MyMriReport.vue'
 import MyMriViewer from '@/components/myMri/MyMriViewer.vue'
@@ -46,9 +47,7 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
     <template #stage>
       <div class="tw:grid tw:grid-cols-1 tw:gap-4 tw:p-6 tw:max-xl:flex-none tw:xl:min-h-0 tw:xl:flex-1 tw:xl:grid-cols-2 tw:xl:grid-rows-1">
         <section class="tw:flex tw:min-h-80 tw:xl:min-h-0 tw:flex-col tw:rounded-card tw:border tw:border-border tw:bg-surface-sunken">
-          <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
-            {{ MY_MRI_COPY.viewerHeading }}
-          </h2>
+          <MyMriColumnHeader :title="MY_MRI_COPY.viewerHeading" />
           <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" live @retry="reload()">
             <MyMriViewer
               v-if="urls"
@@ -68,9 +67,7 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
             :with-reload="withReload"
           />
           <template v-else>
-            <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
-              {{ MY_MRI_COPY.reportHeading }}
-            </h2>
+            <MyMriColumnHeader :title="MY_MRI_COPY.reportHeading" />
             <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" @retry="reload()" />
           </template>
         </section>

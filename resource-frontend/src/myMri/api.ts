@@ -39,7 +39,7 @@ async function errorFromResponse(res: Response): Promise<MyMriError> {
 }
 
 /** Normalise anything thrown by fetch or the reader into a MyMriError (aborts pass through). */
-function toMyMriError(e: unknown): unknown {
+export function toMyMriError(e: unknown): unknown {
   if (isAbort(e) || isMyMriError(e)) return e
   const err: MyMriError = { summary: UNREACHABLE, detail: e instanceof Error ? e.message : String(e) }
   return err
@@ -127,22 +127,20 @@ export function patientUrls(assayUuid: string, cohort: string) {
   }
 }
 
-export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+async function request<T>(url: string, signal: AbortSignal | undefined, read: (res: Response) => Promise<T>): Promise<T> {
   try {
     const res = await fetch(url, { signal })
     if (!res.ok) throw await errorFromResponse(res)
-    return await res.json() as T
+    return await read(res)
   } catch (e) {
     throw toMyMriError(e)
   }
 }
 
-export async function fetchBlob(url: string, signal?: AbortSignal): Promise<Blob> {
-  try {
-    const res = await fetch(url, { signal })
-    if (!res.ok) throw await errorFromResponse(res)
-    return await res.blob()
-  } catch (e) {
-    throw toMyMriError(e)
-  }
+export function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  return request(url, signal, res => res.json() as Promise<T>)
+}
+
+export function fetchBlob(url: string, signal?: AbortSignal): Promise<Blob> {
+  return request(url, signal, res => res.blob())
 }

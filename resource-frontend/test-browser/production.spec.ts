@@ -244,16 +244,17 @@ test.describe('§12 acceptance, against the built site', () => {
     await page.goto(`${base}/my-mri`)
 
     const viewer = page.getByRole('img', { name: 'Your MRI scan in 3D' })
-    // The 3D column's session error -- the only live one. The report column
-    // has an error state of its own (a local backend cannot render the PDF),
-    // which says nothing about the scan.
-    const sessionError = page.locator('[data-state="error"][role="alert"]')
+    // The 3D column's session error. The report column has an error state of
+    // its own (a local backend cannot render the PDF), which says nothing
+    // about the scan, so everything here is scoped to the 3D column.
+    const column = page.locator('section', { has: page.getByRole('heading', { name: '3D view' }), hasNot: page.getByRole('heading', { name: 'Report' }) })
+    const sessionError = column.locator('[data-state="error"]')
     await expect(viewer.or(sessionError)).toBeVisible({ timeout: 60_000 })
     test.skip(await sessionError.isVisible(), 'the backend could not open the patient dataset (MinIO on :9010?)')
 
     // Enabled once the volume has loaded and been placed.
     await expect(page.getByRole('button', { name: 'Reset the 3D view' })).toBeEnabled({ timeout: 120_000 })
-    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(column.getByRole('alert')).toHaveCount(0)
     await expect.poll(() => centreDrawnFraction(viewer), {
       message: 'the viewer is ready but drew no scan',
       timeout: 30_000,
