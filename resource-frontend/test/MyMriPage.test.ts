@@ -1,6 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MY_MRI_COPY, colourSentence } from '../src/content/myMri'
 import { getToolConfig } from '../src/myMri/config'
@@ -17,10 +16,12 @@ const DefaultLayoutStub = {
   `,
 }
 /** The viewer's own scene is covered by useMyMriScene.test.ts; here it only reports. */
+let viewerMounts = 0
 const MyMriViewerStub = {
   name: 'MyMriViewer',
   props: ['mri', 'mask', 'findings'],
-  emits: ['error'],
+  emits: ['retry'],
+  mounted() { viewerMounts++ },
   template: '<div data-slot="my-mri-viewer" />',
 }
 const enc = new TextEncoder()
@@ -133,22 +134,18 @@ describe('MyMriPage session states', () => {
     expect(viewer.props('findings')).toEqual([{ label: 'Finding 1', channel: 1, color: '#ff7043' }])
   })
 
-  it('shows a viewer failure in the 3D column only, and Try again reloads', async () => {
+  it('retries only the viewer when the viewer asks, leaving the session and report alone', async () => {
     stubBackend(noFindings)
     const wrapper = mountPage()
     await flushPromises()
-    wrapper.getComponent({ name: 'MyMriViewer' }).vm.$emit('error', 'Your scan could not be loaded.')
-    await nextTick()
-    const errors = wrapper.findAll('[data-state="error"]')
-    expect(errors).toHaveLength(1)
-    expect(errors[0]!.text()).toContain('Your scan could not be loaded.')
-    expect(wrapper.find('[data-slot="my-mri-report"]').exists()).toBe(true)
-    expect(wrapper.findAll('[role="alert"]')).toHaveLength(1)
-
-    await errors[0]!.get('button').trigger('click')
+    const fetches = vi.mocked(fetch).mock.calls.length
+    const mountsBefore = viewerMounts
+    wrapper.getComponent({ name: 'MyMriViewer' }).vm.$emit('retry')
     await flushPromises()
+    expect(viewerMounts).toBe(mountsBefore + 1)
+    expect(vi.mocked(fetch).mock.calls.length).toBe(fetches)
     expect(wrapper.find('[data-state]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'MyMriViewer' }).exists()).toBe(true)
+    expect(wrapper.find('[data-slot="my-mri-report"]').exists()).toBe(true)
   })
 
   it('shows the colour sentence once findings are loaded', async () => {

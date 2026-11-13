@@ -9,6 +9,7 @@ import type { FindingSummary } from '../src/myMri/useMyMriSession'
 const scene = {
   status: ref<'loading' | 'ready' | 'error'>('ready'),
   error: ref<string | null>(null),
+  noMask: ref(false),
   resetView: vi.fn(),
 }
 const useMyMriScene = vi.fn((_host: unknown, _sources: unknown) => scene)
@@ -29,6 +30,7 @@ describe('MyMriViewer', () => {
   beforeEach(() => {
     scene.status.value = 'ready'
     scene.error.value = null
+    scene.noMask.value = false
     scene.resetView.mockClear()
     useMyMriScene.mockClear()
   })
@@ -72,14 +74,27 @@ describe('MyMriViewer', () => {
     expect(scene.resetView).toHaveBeenCalledTimes(1)
   })
 
-  it('emits a load error and shows it over the canvas', async () => {
+  it('shows a load failure over the canvas with a Try again of its own', async () => {
     scene.status.value = 'loading'
     const wrapper = mountViewer()
     scene.error.value = 'Your scan could not be loaded.'
     scene.status.value = 'error'
     await nextTick()
-    expect(wrapper.emitted('error')).toEqual([['Your scan could not be loaded.']])
-    expect(wrapper.get('[role="alert"]').text()).toBe('Your scan could not be loaded.')
-    expect(wrapper.find('button').exists()).toBe(false)
+    const alert = wrapper.get('[role="alert"]')
+    expect(alert.text()).toContain('Your scan could not be loaded.')
+    expect(wrapper.find(`button[aria-label="${MY_MRI_COPY.viewerResetLabel}"]`).exists()).toBe(false)
+    expect(wrapper.find('ul').exists()).toBe(false)
+    await alert.get('button').trigger('click')
+    expect(alert.get('button').text()).toBe(MY_MRI_COPY.tryAgain)
+    expect(wrapper.emitted('retry')).toHaveLength(1)
+  })
+
+  it('shows a calm note instead of the legend when the scan has no marked areas', () => {
+    scene.noMask.value = true
+    const wrapper = mountViewer()
+    expect(wrapper.find('ul').exists()).toBe(false)
+    expect(wrapper.text()).toContain('No marked areas for this scan.')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.get(`button[aria-label="${MY_MRI_COPY.viewerResetLabel}"]`).attributes('disabled')).toBeUndefined()
   })
 })

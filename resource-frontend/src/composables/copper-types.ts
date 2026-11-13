@@ -122,10 +122,17 @@ export interface CopperControls {
   /** The scene's constructor registers its own `requestRenderIfNotRequested`
    * here; that listener is what keeps on-demand rendering alive. */
   addEventListener?: (type: 'change', listener: () => void) => void
-  /** Detaches the pointer/wheel listeners the constructor put on the shared
-   * canvas. NOT called on eviction: it ends in
-   * `domElement.style.touchAction = ''`, and every scene shares one canvas. */
-  dispose?: () => void
+  /**
+   * Detaches the pointer/wheel listeners the constructor put on the canvas and
+   * its `keydown`/`keyup` listeners on `window`. Declared non-optional by
+   * copper3d (`Copper3dTrackballControls.d.ts`).
+   *
+   * NOT called on eviction: it ends in `domElement.style.touchAction = ''`,
+   * and every scene of a renderer shares one canvas. Only a caller that owns
+   * the renderer and its canvas outright (the My MRI view) calls it, on
+   * teardown.
+   */
+  dispose: () => void
   /**
    * From three's `EventDispatcher`, which `Controls` extends. The one
    * listener that matters here is the `change` handler
@@ -141,8 +148,10 @@ export interface CopperControls {
   removeEventListener?: (type: 'change', listener: () => void) => void
 }
 
-/** copper3d's nrrd slice object. `index` is a world coordinate; divide by
- * `volume.spacing[2]` to get the slice number. copper3d's own types give
+/** copper3d's nrrd slice object. `index` is in grid millimetres (slice
+ * number × spacing along the slice's axis, so divide by `volume.spacing[2]`
+ * for a z slice's number); the plane sits at `index - RSAMaxIndex / 2` in the
+ * world. copper3d's own types give
  * up and type this `any` (types/types.ts's `nrrdSliceType`), which is
  * exactly why this narrower interface exists instead of using theirs. */
 export interface NrrdSlice {
@@ -185,6 +194,9 @@ export interface NrrdMeshes {
 
 export interface NrrdVolume {
   RASDimensions: number[]
+  /** The display window every slice repaint reads; the loader starts it at
+   *  `min`/`max`. Call `repaintAllSlices` after changing it. */
+  windowLow: number
   windowHigh: number
   /**
    * three's `Volume.computeMinMax()` result (computed in copper3d's NRRD

@@ -27,6 +27,7 @@ export const MY_MRI_COPY = {
   viewerReset: 'Reset',
   viewerResetLabel: 'Reset the 3D view',
   viewerLegendLabel: 'Colour key',
+  viewerNoMask: 'No marked areas for this scan.',
   viewerErrors: {
     scan: 'Your scan could not be loaded.',
     orientation: 'Your scan could not be shown, because its orientation could not be read.',

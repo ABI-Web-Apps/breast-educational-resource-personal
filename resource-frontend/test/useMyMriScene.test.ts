@@ -7,7 +7,7 @@ import {
 } from 'three'
 import type { Matrix4 } from 'three'
 import { KeepAlive, defineComponent, h, nextTick, ref } from 'vue'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FindingSummary } from '../src/myMri/useMyMriSession'
 import { worldFromLps } from '../src/myMri/patientFrame'
 import { useMyMriScene } from '../src/myMri/useMyMriScene'
@@ -95,7 +95,8 @@ class FakeResizeObserver {
   observe = vi.fn()
   disconnect = vi.fn()
 }
-vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+beforeAll(() => { vi.stubGlobal('ResizeObserver', FakeResizeObserver) })
+afterAll(() => { vi.unstubAllGlobals() })
 
 /** sub-1's registration_1 grid. */
 const GEOMETRY: VolumeGeometry = {
@@ -119,14 +120,21 @@ function plane(w: number, h: number, d: number) {
 function makeMeshes() {
   return { x: plane(0, RAS[1]!, RAS[2]!), y: plane(RAS[0]!, 0, RAS[2]!), z: plane(RAS[0]!, RAS[1]!, 0) }
 }
-function makeVolume() {
+function makeVolume(data: ArrayLike<number> = new Int16Array(64), min = 0, max = 1) {
   return {
     RASDimensions: RAS,
     orientation: { geometry: GEOMETRY },
-    data: new Int16Array(64),
-    min: 0, max: 1, windowHigh: 1,
+    data,
+    min, max, windowLow: min, windowHigh: max,
     repaintAllSlices: vi.fn(),
   }
+}
+
+/** three's `FileLoader` rejects a non-2xx with an `HttpError` carrying the `Response`. */
+function httpError(status: number, body: unknown) {
+  return Object.assign(new Error(`fetch for "${MASK}" responded with ${status}`), {
+    response: new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }),
+  })
 }
 /** What the backend's `mask.glb` decodes to: one node per label, named `channel_<n>`. */
 function makeMask(channels = [1, 2]) {
@@ -235,6 +243,8 @@ describe('useMyMriScene', () => {
 
     const group = landMask()
     expect(group.matrixAutoUpdate).toBe(false)
+    // loadGltf's recentring is undone, so nothing can ever read it back.
+    expect(group.position.toArray()).toEqual([0, 0, 0])
     // loadGltf's recentring wrote `position`; with the matrix pinned it has no effect.
     scene.scene.updateMatrixWorld(true)
     expectMatrixClose(group.matrixWorld, worldFromLps(GEOMETRY, RAS))
@@ -365,6 +375,66 @@ describe('useMyMriScene', () => {
     expect(renderer.render).toHaveBeenCalled()
   })
 
+  it('frames the first volume even when the reader touched the stage while it loaded', async () => {
+    const { wrapper, api } = await mountScene()
+    wrapper.element.dispatchEvent(new Event('pointerdown'))
+    wrapper.element.dispatchEvent(new Event('wheel'))
+    landVolume()
+    const eye = scene.camera.position.clone()
+    expect(scene.camera.far).toBeGreaterThanOrEqual(scene.controls.maxDistance)
+    api.resetView()
+    expect(scene.camera.position.distanceTo(eye)).toBeCloseTo(0, 9)
+  })
+
+  it('keeps the far plane past the dolly limit once the mask has landed', async () => {
+    await mountScene()
+    landVolume()
+    landMask()
+    expect(scene.camera.far).toBeGreaterThanOrEqual(scene.controls.maxDistance)
+  })
+
+  it('windows the planes on the 1st to 99th percentile of the volume', async () => {
+    await mountScene()
+    const ramp = Float32Array.from({ length: 100_000 }, (_, i) => i / 10) // 0 .. 9999.9, uniform
+    const { volume } = landVolume(makeVolume(ramp, 0, 9999.9))
+    expect(volume.windowLow).toBeGreaterThan(95)
+    expect(volume.windowLow).toBeLessThan(105)
+    expect(volume.windowHigh).toBeGreaterThan(9895)
+    expect(volume.windowHigh).toBeLessThan(9905)
+    expect(volume.repaintAllSlices).toHaveBeenCalled()
+  })
+
+  it('leaves a flat volume on its own range', async () => {
+    await mountScene()
+    const { volume } = landVolume(makeVolume(new Int16Array(64).fill(7), 7, 7))
+    expect(volume.windowLow).toBe(7)
+    expect(volume.windowHigh).toBe(7)
+  })
+
+  it('shows the planes without a mesh when the scan has no mask', async () => {
+    const { api } = await mountScene()
+    const { slices } = landVolume()
+    const before = slices.z.index
+    gltfCall()[2].onError(httpError(404, { detail: { code: 'no_mask', summary: 'Cohort sub-1 has no mask.' } }))
+    await flushPromises()
+    expect(api.status.value).toBe('ready')
+    expect(api.noMask.value).toBe(true)
+    expect(api.error.value).toBeNull()
+    expect(slices.z.index).toBe(before)
+    renderer.render.mockClear()
+    api.resetView()
+    expect(renderer.render).toHaveBeenCalled()
+  })
+
+  it('still reports any other mask 404 as a failure', async () => {
+    const { api } = await mountScene()
+    landVolume()
+    gltfCall()[2].onError(httpError(404, { detail: { code: 'unknown_cohort', summary: 'x' } }))
+    await flushPromises()
+    expect(api.status.value).toBe('error')
+    expect(api.noMask.value).toBe(false)
+  })
+
   it('registers the scene with the shared budget, pinned, and releases it on unmount', async () => {
     const { wrapper } = await mountScene()
     const { volume } = landVolume()
@@ -390,6 +460,8 @@ describe('useMyMriScene', () => {
     wrapper.unmount()
 
     expect(renderer.dispose).toHaveBeenCalledTimes(1)
+    // This viewer owns its canvas outright, so its trackball's window listeners go too.
+    expect(scene.controls.dispose).toHaveBeenCalledTimes(1)
     expect(planeFreed).toHaveBeenCalled()
     expect(textureFreed).toHaveBeenCalled()
     expect(geometryFreed).toHaveBeenCalled()

@@ -31,9 +31,10 @@ import type { FindingSummary } from '@/myMri/useMyMriSession'
  *
  * Where it differs from the validator:
  *
- * - The camera frames the planes, and the planes show the volume's own
- *   intensity range. The validator frames a body box and applies a default
- *   window, both measured by its backend; this backend measures neither.
+ * - The camera frames the planes, and the planes open on a 1st-99th percentile
+ *   window measured here from the loaded voxels. The validator frames a body
+ *   box and applies a default window, both measured by its backend; this
+ *   backend measures neither.
  * - The mask goes through `copperSceneOnDemond.loadGltf`; `loadPureGLB` exists
  *   only on `copperScene`. `loadGltf` recentres the group's `position`, bounds
  *   the dolly on the model and (unless `cameraPositionFlag` is set) frames the
@@ -84,6 +85,12 @@ const NRRD_STALL_TIMEOUT_MS = 15_000
 /** The mask has no progress signal worth watching (the backend builds the mesh
  *  before it answers), so it gets a flat net under `onError`. */
 const GLB_LOAD_TIMEOUT_MS = 30_000
+
+/** The opening display window's percentiles: the ones the report's slice images use. */
+const WINDOW_PERCENTILES: [number, number] = [1, 99]
+/** Histogram resolution and sample cap for measuring them (`exposureExponent`'s). */
+const WINDOW_BINS = 4096
+const WINDOW_MAX_SAMPLES = 4_000_000
 
 export interface MyMriSources {
   mri: string
@@ -185,6 +192,60 @@ function centreSlicesOn(slices: Slices, centre: Vector3): void {
   }
 }
 
+/**
+ * The display window the planes open on: the `low`th to `high`th percentile of
+ * the volume's intensities, measured from a histogram over `[min, max]` of at
+ * most `WINDOW_MAX_SAMPLES` evenly strided voxels. The loader's own window is
+ * the full `min`..`max`, which a few bright voxels stretch until the tissue is
+ * dark. Undefined for a volume with no range, which keeps its own window.
+ */
+function percentileWindow(
+  volume: { data: ArrayLike<number>, min: number, max: number },
+  [low, high]: [number, number] = WINDOW_PERCENTILES,
+): [number, number] | undefined {
+  const { data, min, max } = volume
+  if (data.length === 0 || !(max > min)) return undefined
+  const scale = WINDOW_BINS / (max - min)
+  const stride = Math.max(1, Math.floor(data.length / WINDOW_MAX_SAMPLES))
+  const histogram = new Uint32Array(WINDOW_BINS)
+  let sampled = 0
+  for (let i = 0; i < data.length; i += stride) {
+    const bin = Math.floor((data[i]! - min) * scale)
+    histogram[Math.min(WINDOW_BINS - 1, Math.max(0, bin))]!++
+    sampled++
+  }
+  const binAt = (percent: number) => {
+    const target = (sampled * percent) / 100
+    let seen = 0
+    for (let bin = 0; bin < WINDOW_BINS; bin++) {
+      seen += histogram[bin]!
+      if (seen >= target) return bin
+    }
+    return WINDOW_BINS - 1
+  }
+  // The low bin's lower edge and the high bin's upper edge, so neither end clips early.
+  const windowLow = min + binAt(low) / scale
+  const windowHigh = Math.min(max, min + (binAt(high) + 1) / scale)
+  return windowHigh > windowLow ? [windowLow, windowHigh] : undefined
+}
+
+/**
+ * Whether a failed mask load is the backend's 404 `no_mask`: a scan with
+ * nothing marked, which is not a failure. three's `FileLoader` rejects a
+ * non-2xx with an error carrying the `Response`, whose body is unread.
+ */
+async function isNoMask(err: unknown): Promise<boolean> {
+  const response = (err as { response?: unknown } | null)?.response
+  if (!(response instanceof Response) || response.status !== 404) return false
+  try {
+    const body = await response.clone().json() as { detail?: { code?: unknown } } | null
+    return body?.detail?.code === 'no_mask'
+  }
+  catch {
+    return false
+  }
+}
+
 function boundsRadius(bounds: FitBounds): number {
   return Math.hypot(bounds.width, bounds.height, bounds.depth) / 2
 }
@@ -196,6 +257,8 @@ function boundsRadius(bounds: FitBounds): number {
 export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSources) {
   const status = ref<MyMriSceneStatus>('loading')
   const error = ref<string | null>(null)
+  /** The scan has no marked areas: the planes show alone, and that is not an error. */
+  const noMask = ref(false)
 
   /** The renderer's scene map and the shared budget both key on this. */
   const sceneName = `my-mri:${sources.mri}`
@@ -270,12 +333,17 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     status.value = 'error'
   }
 
-  /** The trackball's dolly limits, from the planes. */
+  /**
+   * The trackball's dolly limits, from the planes, and a far plane that covers
+   * a fully zoomed-out camera (the preset's 1000 does not).
+   */
   function limitDolly() {
     if (!scene || !bounds) return
     const radius = boundsRadius(bounds)
     scene.controls.minDistance = radius * MIN_DISTANCE_FACTOR
     scene.controls.maxDistance = radius * MAX_DISTANCE_FACTOR
+    scene.camera.far = Math.max(VIEW_PRESET.farPlane, radius * (MAX_DISTANCE_FACTOR + 1))
+    scene.camera.updateProjectionMatrix()
   }
 
   /**
@@ -291,13 +359,11 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     if (bounds) {
       fitView(scene, VIEW_PRESET, stage.aspect(), bounds)
       limitDolly()
-      // The preset's far plane does not cover a fully zoomed-out camera.
-      camera.far = Math.max(VIEW_PRESET.farPlane, boundsRadius(bounds) * (MAX_DISTANCE_FACTOR + 1))
     }
     else {
       camera.far = VIEW_PRESET.farPlane
+      camera.updateProjectionMatrix()
     }
-    camera.updateProjectionMatrix()
     posed = false
   }
 
@@ -321,11 +387,6 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     created.controls.rotateSpeed = ROTATE_SPEED
     created.controls.panSpeed = PAN_SPEED
     addSceneLights(created)
-
-    // A real gesture means the reader has chosen this camera.
-    inputHost = host.value ?? undefined
-    inputHost?.addEventListener('pointerdown', markPosed)
-    inputHost?.addEventListener('wheel', markPosed, { passive: true })
 
     frame()
     loadVolume(created, Copper)
@@ -387,8 +448,24 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     getSceneBudget().pin(sceneName)
     registered = true
 
-    if (!posed) frame()
+    // Open on the 1st-99th percentile window (the validator applies a measured
+    // default window the same way), repainting the slices the loader painted
+    // with the full range.
+    const greyWindow = percentileWindow(volume)
+    if (greyWindow) {
+      volume.windowLow = greyWindow[0]
+      volume.windowHigh = greyWindow[1]
+      volume.repaintAllSlices()
+    }
+
+    frame()
     draw()
+    // A real gesture means the reader has chosen this camera. Only from here
+    // on: input while the volume loads must not cost it its opening fit.
+    inputHost = host.value ?? undefined
+    inputHost?.addEventListener('pointerdown', markPosed)
+    inputHost?.addEventListener('wheel', markPosed, { passive: true })
+
     loadMask(target, worldFromLps(volume.orientation.geometry, volume.RASDimensions), slices)
   }
 
@@ -407,6 +484,9 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
         clearTimer()
         // `loadGltf` bounded the dolly on the mask; the limits come from the planes.
         limitDolly()
+        // `loadGltf` recentred the group on its own box. The matrix below is what
+        // places it, but a stale offset must not survive to be read back.
+        group.position.set(0, 0, 0)
         placeInPatientFrame(group, toWorld)
         colourMask(group, sources.findings)
         const marked = new Box3().setFromObject(group)
@@ -414,8 +494,21 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
         status.value = 'ready'
         draw()
       },
-      { onError: err => fail(err, MY_MRI_COPY.viewerErrors.mask) },
+      { onError: (err) => { void onMaskError(err) } },
     )
+  }
+
+  async function onMaskError(err: unknown) {
+    if (disposed || failed) return
+    if (!(await isNoMask(err))) {
+      fail(err, MY_MRI_COPY.viewerErrors.mask)
+      return
+    }
+    if (disposed || failed) return
+    clearTimer()
+    noMask.value = true
+    status.value = 'ready'
+    draw()
   }
 
   /** Back to the opening camera. */
@@ -440,9 +533,15 @@ export function useMyMriScene(host: Ref<HTMLElement | null>, sources: MyMriSourc
     // textures (the planes' canvas textures included). The renderer itself is
     // disposed by the stage right after this.
     const renderer = stage.renderer.value
-    if (scene && renderer) disposeScene(renderer, sceneName)
+    if (scene && renderer) {
+      disposeScene(renderer, sceneName)
+      // `disposeScene` leaves the controls attached because a renderer's scenes
+      // share one canvas. This renderer and its canvas are this view's alone and
+      // go with it, so the trackball's own canvas and window listeners go too.
+      scene.controls.dispose()
+    }
     scene = undefined
   }
 
-  return { status, error, resetView }
+  return { status, error, noMask, resetView }
 }
