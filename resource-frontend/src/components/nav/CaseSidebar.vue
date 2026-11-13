@@ -8,9 +8,13 @@ import type { CaseGroup } from '@/content/types'
 import { GROUP_INK, RESULTS_INK } from '@/utils/groupInk'
 import AppLink from '@/navigation/AppLink.vue'
 import { useOptionalPageRoute } from '@/navigation/router'
+import { hasBackend } from '@/runtime/env'
 
 const store = useViewerStore()
 const { publicUrl } = useAssetUrl()
+
+/** YOUR RESULTS is the patient's own data, which only a build with the backend can serve. */
+const showResults = hasBackend()
 
 // Pages are kept alive, so the page's own route is the one to read; the
 // stored case slug alone would keep a case row lit while My MRI is open.
@@ -237,7 +241,7 @@ function onKeydown(event: KeyboardEvent) {
       </ul>
     </div>
 
-    <div>
+    <div v-if="showResults">
       <h2
         class="tw:mb-2 tw:flex tw:items-center tw:gap-1.5 tw:px-2 tw:text-caption tw:font-bold tw:uppercase tw:tracking-wide"
         :class="RESULTS_INK"

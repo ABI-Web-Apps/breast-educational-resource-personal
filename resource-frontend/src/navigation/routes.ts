@@ -1,5 +1,6 @@
 import { getCase } from '@/content/cases'
 import { LEGACY_ROUTES } from '@/content/legacyRoutes'
+import { hasBackend } from '@/runtime/env'
 
 /**
  * The app's page table, without a router library.
@@ -14,7 +15,8 @@ import { LEGACY_ROUTES } from '@/content/legacyRoutes'
  *   /                      -> redirect to /the-breast (pages/index.vue)
  *   LEGACY_ROUTES          -> redirect (nuxt.config.ts's routeRules)
  *   /about                 -> about (pages/about.vue)
- *   /my-mri                -> the patient's own scan and report
+ *   /my-mri                -> the patient's own scan and report (404 in a
+ *                             build without a backend, see `hasBackend`)
  *   /:slug                 -> case, when the slug names an enabled case
  *   /:slug/:modality       -> case; an unknown modality falls back inside
  *                             the page, exactly as `[[modality]].vue` did
@@ -59,7 +61,8 @@ export function resolvePath(raw: string): Resolution {
     return { route: { path, name: 'about', params: {} } }
   }
 
-  if (segments.length === 1 && segments[0]!.toLowerCase() === 'my-mri') {
+  // A build without a backend (GitHub Pages) cannot serve it; the path 404s there.
+  if (hasBackend() && segments.length === 1 && segments[0]!.toLowerCase() === 'my-mri') {
     return { route: { path, name: 'my-mri', params: {} } }
   }
 

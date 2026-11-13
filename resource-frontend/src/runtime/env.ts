@@ -50,6 +50,16 @@ export function publicBase(): string {
   return import.meta.env.BASE_URL
 }
 
+/**
+ * Whether this build has the backend behind it. A build that sets
+ * `VITE_ASSET_BASE` is the no-backend deploy (GitHub Pages): the imaging is
+ * copied beside the app and there is no API, so pages that need one (My
+ * MRI) are left out of it -- its sidebar entry hidden, its path a 404.
+ */
+export function hasBackend(): boolean {
+  return !import.meta.env.VITE_ASSET_BASE
+}
+
 /** The base imaging assets are joined onto. */
 export function assetBase(): string {
   const configured = import.meta.env.VITE_ASSET_BASE

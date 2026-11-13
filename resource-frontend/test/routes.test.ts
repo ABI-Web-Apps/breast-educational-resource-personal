@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { enabledCases } from '../src/content/cases'
 import { HOME_PATH, normalisePath, resolveFinal, resolvePath } from '../src/navigation/routes'
 
@@ -7,12 +7,28 @@ import { HOME_PATH, normalisePath, resolveFinal, resolvePath } from '../src/navi
  * one the old app had: index.vue's redirect, the `[slug]/[[modality]]`
  * page with its `validate` guard, about.vue, and the router's own matching.
  */
-describe('route table', () => {
-  it('serves /my-mri, case-insensitively', () => {
+/**
+ * My MRI needs the backend, so only a build that has one serves it. The
+ * suite's own `VITE_ASSET_BASE` (vitest.config.ts) is the GitHub Pages
+ * build's, which has none; each case here picks its build explicitly.
+ */
+describe('/my-mri by build', () => {
+  afterEach(() => { vi.unstubAllEnvs() })
+
+  it('serves /my-mri, case-insensitively, where a backend is deployed', () => {
+    vi.stubEnv('VITE_ASSET_BASE', '')
     expect(resolvePath('/my-mri')).toEqual({ route: { path: '/my-mri', name: 'my-mri', params: {} } })
     expect(resolvePath('/MY-MRI')).toMatchObject({ route: { name: 'my-mri' } })
   })
 
+  it('404s /my-mri in a build without a backend (GitHub Pages)', () => {
+    vi.stubEnv('VITE_ASSET_BASE', '/modelView/')
+    expect(resolvePath('/my-mri')).toEqual({ route: { path: '/my-mri', name: 'not-found', params: {} } })
+    expect(resolvePath('/MY-MRI')).toMatchObject({ route: { name: 'not-found' } })
+  })
+})
+
+describe('route table', () => {
   it('sends the site root to the home case, as pages/index.vue did', () => {
     expect(resolvePath('/')).toEqual({ redirect: HOME_PATH })
     expect(resolveFinal('/')).toEqual({
