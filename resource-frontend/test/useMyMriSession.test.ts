@@ -127,3 +127,89 @@ describe('useMyMriSession', () => {
     expect(session.error.value).toBeNull()
   })
 })
+
+describe('withReload contract', () => {
+  const ready = async () => {
+    const calls = route({ 'tool-config': [toolConfigOk], findings: [() => json(200, record)] })
+    const made = setup()
+    await flushPromises()
+    calls.length = 0
+    return { ...made, calls }
+  }
+  const e409 = { summary: 'Reload', detail: '', code: 'assay_not_loaded' }
+
+  it('rethrows a non-409 error from fn and leaves the session ready', async () => {
+    const { session } = await ready()
+    const boom = { summary: 'Report unavailable', detail: '', code: 'report_unavailable' }
+    await expect(session.withReload(async () => { throw boom })).rejects.toBe(boom)
+    expect(session.status.value).toBe('ready')
+    expect(session.error.value).toBeNull()
+    expect(session.findings.value).toHaveLength(2)
+  })
+
+  it('re-posts on 409 and retries fn', async () => {
+    const { session, calls } = await ready()
+    const fn = vi.fn().mockRejectedValueOnce(e409).mockResolvedValueOnce('ok')
+    await expect(session.withReload(fn)).resolves.toBe('ok')
+    expect(calls).toEqual(['tool-config'])
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('rethrows a failed retry and leaves the session untouched', async () => {
+    const { session } = await ready()
+    const second = { summary: 'Still gone', detail: '', code: 'assay_not_loaded' }
+    const fn = vi.fn().mockRejectedValueOnce(e409).mockRejectedValueOnce(second)
+    await expect(session.withReload(fn)).rejects.toBe(second)
+    expect(session.status.value).toBe('ready')
+    expect(session.error.value).toBeNull()
+  })
+
+  it('sets the session error when the re-post itself fails', async () => {
+    route({ 'tool-config': [toolConfigOk, toolConfigFails], findings: [() => json(200, record)] })
+    const { session } = setup()
+    await flushPromises()
+    const fn = vi.fn().mockRejectedValue(e409)
+    await expect(session.withReload(fn)).rejects.toMatchObject({ summary: 'Dataset ... missing' })
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(session.status.value).toBe('error')
+    expect(session.error.value!.summary).toBe('Dataset ... missing')
+  })
+
+  it('shares one re-post between concurrent callers', async () => {
+    const { session, calls } = await ready()
+    const make = () => vi.fn().mockRejectedValueOnce(e409).mockResolvedValueOnce('ok')
+    await Promise.all([session.withReload(make()), session.withReload(make())])
+    expect(calls.filter(c => c === 'tool-config')).toHaveLength(1)
+  })
+})
+
+describe('stale runs and bad data', () => {
+  it('ignores the late result of a superseded run', async () => {
+    let release!: (r: Response) => void
+    const stale = new Promise<Response>((r) => { release = r })
+    let findingsCalls = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('tool-config')) return toolConfigOk()
+      return findingsCalls++ === 0
+        ? stale
+        : json(200, { findings: [{ label: 'New', lesion: { channel: 1, color: '#ff7043' } }] })
+    }))
+    const { session } = setup()
+    await flushPromises()
+    await session.reload()
+    expect(session.findings.value.map(f => f.label)).toEqual(['New'])
+    release(json(200, record))
+    await flushPromises()
+    expect(session.findings.value.map(f => f.label)).toEqual(['New'])
+    expect(session.status.value).toBe('ready')
+  })
+
+  it('reports a malformed findings record as a normal error', async () => {
+    route({ 'tool-config': [toolConfigOk], findings: [() => json(200, { findings: [{ label: 'x' }] })] })
+    const { session } = setup()
+    await flushPromises()
+    expect(session.status.value).toBe('error')
+    expect(session.error.value!.summary).toBeTruthy()
+    expect(session.error.value).not.toBeInstanceOf(Error)
+  })
+})

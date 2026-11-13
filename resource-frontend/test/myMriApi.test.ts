@@ -86,3 +86,52 @@ describe('patientUrls', () => {
     expect(u.report('Pacific/Auckland')).toBe('http://api.test/api/patients/a%20b/sub%2F1/report.pdf?tz=Pacific%2FAuckland')
   })
 })
+
+describe('postToolConfig SSE framing', () => {
+  const streamOf = (...chunks: Uint8Array[]) => new Response(new ReadableStream<Uint8Array>({
+    start(c) { chunks.forEach(ch => c.enqueue(ch)); c.close() },
+  }), { status: 200 })
+
+  it('parses CRLF framing, including a CR/LF split across chunks', async () => {
+    const onProgress = vi.fn()
+    vi.stubGlobal('fetch', vi.fn(async () => streamOf(
+      enc.encode('event: progress\r\ndata: {"case":"sub-1","current":1,"total_cases":1}\r'),
+      enc.encode('\n\r\nevent: complete\r\ndata: {"assay":"a","cases":["sub-1"]}\r\n\r\n'),
+    )))
+    const res = await postToolConfig(getToolConfig(), onProgress)
+    expect(res.assay).toBe('a')
+    expect(onProgress).toHaveBeenCalledTimes(1)
+  })
+
+  it('parses a final event with no trailing blank line', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => streamOf(
+      enc.encode('event: complete\ndata: {"assay":"a","cases":[]}'),
+    )))
+    await expect(postToolConfig(getToolConfig(), () => {})).resolves.toMatchObject({ assay: 'a' })
+  })
+
+  it('joins multi-line data fields with a newline', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => streamOf(
+      enc.encode('event: complete\ndata: {"assay":\ndata: "a","cases":[]}\n\n'),
+    )))
+    await expect(postToolConfig(getToolConfig(), () => {})).resolves.toMatchObject({ assay: 'a' })
+  })
+
+  it('keeps a multi-byte character split across two chunks intact', async () => {
+    const bytes = enc.encode('event: error\ndata: {"summary":"caf\u00e9 \u2014 down","detail":""}\n\n')
+    const cut = bytes.indexOf(0xc3) + 1 // between the two bytes of "\u00e9"
+    vi.stubGlobal('fetch', vi.fn(async () => streamOf(bytes.slice(0, cut), bytes.slice(cut))))
+    await expect(postToolConfig(getToolConfig(), () => {})).rejects.toMatchObject({ summary: 'caf\u00e9 \u2014 down' })
+  })
+
+  it('cancels the reader once complete has been handled', async () => {
+    const cancel = vi.fn()
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(enc.encode('event: complete\ndata: {"assay":"a","cases":[]}\n\n')) },
+      cancel,
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200 })))
+    await postToolConfig(getToolConfig(), () => {})
+    expect(cancel).toHaveBeenCalled()
+  })
+})

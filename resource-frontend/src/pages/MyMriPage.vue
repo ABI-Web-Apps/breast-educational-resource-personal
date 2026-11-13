@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import MyMriColumnState from '@/components/myMri/MyMriColumnState.vue'
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 import { MY_MRI_COPY, colourSentence } from '@/content/myMri'
 import type { FindingColour } from '@/content/myMri'
@@ -41,35 +42,17 @@ useDocumentTitle(() => `${MY_MRI_COPY.title} — Breast Educational Resource`)
           <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
             {{ MY_MRI_COPY.viewerHeading }}
           </h2>
-          <div class="tw:min-h-0 tw:flex-1">
-            <div v-if="status === 'loading'" data-state="loading" role="status" class="tw:p-4 tw:text-body-sm tw:text-text-muted">
-              {{ progressText }}
-            </div>
-            <div v-else-if="status === 'error'" data-state="error" role="alert" class="tw:flex tw:flex-col tw:items-start tw:gap-3 tw:p-4 tw:text-body-sm tw:text-text">
-              <p>{{ error?.summary }}</p>
-              <button type="button" class="tw:rounded-card tw:border tw:border-border tw:px-3 tw:py-1 tw:font-bold tw:text-text" @click="reload()">
-                {{ MY_MRI_COPY.tryAgain }}
-              </button>
-            </div>
-            <div v-else data-slot="my-mri-viewer" class="tw:h-full" />
-          </div>
+          <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" live @retry="reload()">
+            <div data-slot="my-mri-viewer" class="tw:h-full" />
+          </MyMriColumnState>
         </section>
         <section class="tw:flex tw:min-h-80 tw:xl:min-h-0 tw:flex-col tw:rounded-card tw:border tw:border-border tw:bg-surface-sunken">
           <h2 class="tw:border-b tw:border-border tw:px-4 tw:py-2 tw:text-body-sm tw:font-bold tw:text-text">
             {{ MY_MRI_COPY.reportHeading }}
           </h2>
-          <div class="tw:min-h-0 tw:flex-1">
-            <div v-if="status === 'loading'" data-state="loading" role="status" class="tw:p-4 tw:text-body-sm tw:text-text-muted">
-              {{ progressText }}
-            </div>
-            <div v-else-if="status === 'error'" data-state="error" role="alert" class="tw:flex tw:flex-col tw:items-start tw:gap-3 tw:p-4 tw:text-body-sm tw:text-text">
-              <p>{{ error?.summary }}</p>
-              <button type="button" class="tw:rounded-card tw:border tw:border-border tw:px-3 tw:py-1 tw:font-bold tw:text-text" @click="reload()">
-                {{ MY_MRI_COPY.tryAgain }}
-              </button>
-            </div>
-            <div v-else data-slot="my-mri-report" class="tw:h-full" />
-          </div>
+          <MyMriColumnState :status="status" :summary="error?.summary" :progress-text="progressText" @retry="reload()">
+            <div data-slot="my-mri-report" class="tw:h-full" />
+          </MyMriColumnState>
         </section>
       </div>
     </template>

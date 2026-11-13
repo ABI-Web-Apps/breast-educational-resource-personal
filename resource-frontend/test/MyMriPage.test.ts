@@ -30,16 +30,23 @@ function stubBackend(findings: () => Response, toolConfig: () => Response = comp
     url.includes('tool-config') ? toolConfig() : findings()))
 }
 const noFindings = () => jsonRes(404, { detail: { code: 'no_findings', summary: 'none' } })
-afterEach(() => { vi.unstubAllGlobals() })
+const mounted: { unmount: () => void }[] = []
+const track = <T extends { unmount: () => void }>(w: T): T => { mounted.push(w); return w }
+afterEach(async () => {
+  // Unmount first so any in-flight request is aborted, then let it settle.
+  mounted.splice(0).forEach(w => w.unmount())
+  await flushPromises()
+  vi.unstubAllGlobals()
+})
 
 const route: PageRoute = { path: '/my-mri', name: 'my-mri', params: {} }
 
 describe('MyMriPage', () => {
   beforeEach(() => { setActivePinia(createPinia()); stubBackend(noFindings) })
-  const mountPage = () => mount(MyMriPage, {
+  const mountPage = () => track(mount(MyMriPage, {
     props: { route },
     global: { stubs: { DefaultLayout: DefaultLayoutStub } },
-  })
+  }))
 
   it('renders the heading with the cohort from the config', () => {
     const heading = mountPage().get('.heading-slot')
@@ -67,10 +74,10 @@ describe('MyMriPage', () => {
 
 describe('MyMriPage session states', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
-  const mountPage = () => mount(MyMriPage, {
+  const mountPage = () => track(mount(MyMriPage, {
     props: { route },
     global: { stubs: { DefaultLayout: DefaultLayoutStub } },
-  })
+  }))
 
   it('shows loading text in both columns, then the placeholders when ready', async () => {
     stubBackend(noFindings)
@@ -95,6 +102,14 @@ describe('MyMriPage session states', () => {
     await wrapper.findAll('button').find(b => b.text() === 'Try again')!.trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-state]').exists()).toBe(false)
+  })
+
+  it('announces the session state from one live region only', async () => {
+    stubBackend(noFindings, () => jsonRes(400, { detail: { step: 'minio', summary: 'Dataset missing', detail: 'x' } }))
+    const wrapper = mountPage()
+    await flushPromises()
+    expect(wrapper.findAll('[role="alert"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-state="error"]')).toHaveLength(2)
   })
 
   it('shows the colour sentence once findings are loaded', async () => {
@@ -127,7 +142,7 @@ describe('MyMriPage inside the real layout', () => {
   beforeEach(() => { setActivePinia(createPinia()); stubBackend(noFindings) })
 
   it('puts heading, stage columns and panel copy in their slots, with a non-square stage', () => {
-    const wrapper = mount(MyMriPage, {
+    const wrapper = track(mount(MyMriPage, {
       props: { route },
       global: {
         stubs: {
@@ -137,7 +152,7 @@ describe('MyMriPage inside the real layout', () => {
           TourLayer: true,
         },
       },
-    })
+    }))
     const stage = wrapper.get('[data-stage-column] section')
     expect(stage.attributes('aria-label')).toBe('Your MRI scan and report')
     expect(stage.classes()).not.toContain('max-md:aspect-square')

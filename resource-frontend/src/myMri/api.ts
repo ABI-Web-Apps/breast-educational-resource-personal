@@ -45,6 +45,52 @@ function toMyMriError(e: unknown): unknown {
   return err
 }
 
+/** Handle one SSE block; returns the result on `complete`, throws on `error`. */
+function handleBlock(block: string, onProgress: (e: ProgressEvent) => void): { cases: string[], assay: string } | undefined {
+  let name = ''
+  const data: string[] = []
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) name = line.slice(6).trim()
+    else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''))
+  }
+  if (!name || data.length === 0) return undefined
+  const payload = JSON.parse(data.join('\n'))
+  if (name === 'progress') onProgress(payload)
+  else if (name === 'complete') return { cases: payload.cases ?? [], assay: payload.assay }
+  else if (name === 'error') {
+    throw {
+      summary: payload.summary ?? 'Something went wrong.',
+      detail: payload.detail ?? '',
+      step: payload.step,
+    } as MyMriError
+  }
+  return undefined
+}
+
+async function readEvents(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onProgress: (e: ProgressEvent) => void,
+): Promise<{ cases: string[], assay: string }> {
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
+    // Hold back a trailing CR: its LF may arrive in the next chunk.
+    const held = !done && buffer.endsWith('\r') ? '\r' : ''
+    const text = (held ? buffer.slice(0, -1) : buffer).replace(/\r\n?/g, '\n')
+    const parts = text.split('\n\n')
+    // At end of stream the last piece is a complete event even without a blank line.
+    buffer = done ? '' : parts.pop()! + held
+    for (const part of parts) {
+      const result = handleBlock(part, onProgress)
+      if (result) return result
+    }
+    if (done) break
+  }
+  throw { summary: UNREACHABLE, detail: 'The stream ended before it completed.' } as MyMriError
+}
+
 export async function postToolConfig(
   config: ToolConfig,
   onProgress: (e: ProgressEvent) => void,
@@ -61,35 +107,11 @@ export async function postToolConfig(
     if (!res.body) throw { summary: UNREACHABLE, detail: 'Empty response body' } as MyMriError
 
     const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const parts = buffer.split('\n\n')
-      buffer = parts.pop()!
-      for (const part of parts) {
-        let name = ''
-        let data = ''
-        for (const line of part.split('\n')) {
-          if (line.startsWith('event:')) name = line.slice(6).trim()
-          else if (line.startsWith('data:')) data += line.slice(5).trim()
-        }
-        if (!name || !data) continue
-        const payload = JSON.parse(data)
-        if (name === 'progress') onProgress(payload)
-        else if (name === 'complete') return { cases: payload.cases ?? [], assay: payload.assay }
-        else if (name === 'error') {
-          throw {
-            summary: payload.summary ?? 'Something went wrong.',
-            detail: payload.detail ?? '',
-            step: payload.step,
-          } as MyMriError
-        }
-      }
+    try {
+      return await readEvents(reader, onProgress)
+    } finally {
+      reader.cancel().catch(() => {})
     }
-    throw { summary: UNREACHABLE, detail: 'The stream ended before it completed.' } as MyMriError
   } catch (e) {
     throw toMyMriError(e)
   }
